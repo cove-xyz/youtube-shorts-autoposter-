@@ -4,7 +4,8 @@ __pycache__/
 data/*.db
 data/images/
 data/videos/
-data/audio/
+data/audio/*.wav
+data/audio/*.tmp
 data/client_secret.json
 data/youtube_token.json
 data/voice_cache/

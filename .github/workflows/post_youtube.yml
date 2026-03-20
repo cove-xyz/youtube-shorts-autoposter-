@@ -1,0 +1,47 @@
+name: Post YouTube Short
+
+on:
+  schedule:
+    # 3x/day — 9am, 2pm, 8pm Eastern (UTC-4 during EDT)
+    - cron: "0 13 * * *"   # 9:00 AM ET
+    - cron: "0 18 * * *"   # 2:00 PM ET
+    - cron: "0 0 * * *"    # 8:00 PM ET
+  workflow_dispatch:        # Manual trigger from GitHub UI
+
+jobs:
+  post-short:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Write credentials from secrets
+        run: |
+          mkdir -p data
+          echo '${{ secrets.YOUTUBE_CLIENT_SECRET }}' > data/client_secret.json
+          echo '${{ secrets.YOUTUBE_TOKEN }}' > data/youtube_token.json
+
+      - name: Post one YouTube Short
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LLM_MODEL: deepseek/deepseek-chat-v3-0324
+          YOUTUBE_CHANNEL_NAME: MASTERING MONEY
+          YOUTUBE_HANDLE: "@masteringmoneyxyz"
+          YOUTUBE_VIDEO_DURATION: "10"
+          ELEVENLABS_ENABLED: "false"
+          TIMEZONE: America/New_York
+        run: python run_youtube.py post
