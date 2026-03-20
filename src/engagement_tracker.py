@@ -25,10 +25,13 @@ def refresh_engagement(days: int = 7):
     print(f"[ENGAGEMENT] Refreshing metrics for {len(posts)} posts...")
 
     for post in posts:
-        if not post.get("instagram_id"):
+        if not post.get("platform_id"):
+            continue
+        # Only refresh Instagram posts (shorts tracked separately in phase 2)
+        if post.get("post_type") == "short":
             continue
         try:
-            metrics = get_media_insights(post["instagram_id"])
+            metrics = get_media_insights(post["platform_id"])
             update_engagement(post["id"], metrics)
         except Exception as e:
             print(f"[WARN] Failed to get metrics for post {post['id']}: {e}")

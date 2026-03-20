@@ -1,9 +1,22 @@
 import hashlib
 import random
 import requests
-import anthropic
-from src.config import ANTHROPIC_API_KEY, CONTENT_THEMES
+from src.config import CONTENT_THEMES
+from src.llm import generate
 from src.database import content_exists, save_content_hash, get_theme_scores
+
+THEME_LABELS = {
+    "wealth_building": "building wealth and financial growth",
+    "mindset": "mindset and mental toughness",
+    "discipline": "discipline and consistency",
+    "investing": "investing and smart money moves",
+    "entrepreneurship": "entrepreneurship and building businesses",
+    "financial_freedom": "financial freedom and independence",
+    "productivity": "productivity and peak performance",
+    "leadership": "leadership and influence",
+    "stoicism": "stoic philosophy and emotional control",
+    "self_improvement": "self-improvement and personal growth",
+}
 
 
 def get_weighted_theme() -> str:
@@ -52,52 +65,38 @@ def fetch_financial_insight() -> dict | None:
 
 
 def generate_original_content(theme: str, inspiration: dict | None = None) -> dict | None:
-    """Use Claude to generate original quote-style content."""
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
+    """Use LLM to generate original quote-style content."""
     inspiration_text = ""
     if inspiration:
         inspiration_text = f"\nUse this as loose inspiration (do NOT copy): \"{inspiration.get('text', '')}\""
 
-    theme_labels = {
-        "wealth_building": "building wealth and financial growth",
-        "mindset": "mindset and mental toughness",
-        "discipline": "discipline and consistency",
-        "investing": "investing and smart money moves",
-        "entrepreneurship": "entrepreneurship and building businesses",
-        "financial_freedom": "financial freedom and independence",
-        "productivity": "productivity and peak performance",
-        "leadership": "leadership and influence",
-        "stoicism": "stoic philosophy and emotional control",
-        "self_improvement": "self-improvement and personal growth",
-    }
+    theme_desc = THEME_LABELS.get(theme, theme)
 
-    theme_desc = theme_labels.get(theme, theme)
-
-    message = client.messages.create(
-        model="claude-sonnet-4-5-20250514",
-        max_tokens=300,
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Generate a single powerful, original quote about {theme_desc} for a finance/motivation Instagram account called "MASTERING MONEY".
+    prompt = f"""Generate a single powerful, original quote about {theme_desc} for a finance/motivation brand called "MASTERING MONEY".
 {inspiration_text}
 
 Rules:
-- Must be 1-2 sentences, punchy and memorable
-- Masculine, direct, no-fluff motivational tone
-- Think: something a successful CEO or investor would say
-- NO attribution to anyone — this is original content
-- NO hashtags, NO emojis
+- 1-2 SHORT sentences. Every sentence ends with a period.
+- The kind of line that makes someone stop scrolling and screenshot it.
+- Use contrast, tension, or a hard truth. Examples of good structures:
+  * "Everyone wants X. Nobody wants Y."
+  * "The difference between X and Y is Z."
+  * "X does not care about Y."
+  * A direct challenge or uncomfortable truth.
+- Masculine, direct, zero-fluff tone
+- NO emdashes (—), NO endashes (–), NO dashes connecting clauses
+- NO colons or semicolons. Use periods instead.
+- NO attribution. This is original content.
+- NO hashtags, NO emojis, NO quotation marks
 - Do NOT give specific financial advice or mention specific stocks/crypto
-- Maximum 120 characters ideal, 180 characters absolute max
+- 60-140 characters ideal, 160 characters absolute max
 
-Return ONLY the quote text, nothing else.""",
-            }
-        ],
-    )
+Return ONLY the quote text, nothing else."""
 
-    text = message.content[0].text.strip().strip('"').strip("'")
+    text = generate(prompt, max_tokens=300)
+    text = text.strip().strip('"').strip("'")
+    # Enforce: replace any emdashes/endashes the LLM sneaks in
+    text = text.replace("—", ".").replace("–", ".").replace(" . ", ". ")
 
     content_hash = hashlib.sha256(text.lower().encode()).hexdigest()
     if content_exists(content_hash):

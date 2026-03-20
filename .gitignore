@@ -3,6 +3,11 @@ __pycache__/
 *.pyc
 data/*.db
 data/images/
+data/videos/
+data/audio/
+data/client_secret.json
+data/youtube_token.json
+data/voice_cache/
 *.egg-info/
 dist/
 build/
