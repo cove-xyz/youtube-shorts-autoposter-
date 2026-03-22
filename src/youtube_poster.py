@@ -33,25 +33,33 @@ def create_and_post_short() -> dict | None:
     """
     init_db()
 
-    # 1. Generate content
-    print("[1/7] Generating content...")
-    content = generate_content(post_type="short")
+    # 1. Generate content (with retry on safety failure)
+    content = None
+    for attempt in range(3):
+        print(f"[1/7] Generating content (attempt {attempt + 1}/3)...")
+        content = generate_content(post_type="short")
+        if not content:
+            print("  FAILED: Could not generate content")
+            continue
+
+        quote = content["text"]
+        theme = content["theme"]
+        print(f'  Quote: "{quote}"')
+        print(f"  Theme: {theme}")
+
+        # 2. Safety check
+        print("[2/7] Safety check...")
+        safe, reason = is_safe(quote)
+        if safe:
+            print("  Passed")
+            break
+        else:
+            print(f"  REJECTED: {reason} — retrying...")
+            content = None
+
     if not content:
-        print("  FAILED: Could not generate content")
+        print("  FAILED: Could not generate safe content after 3 attempts")
         return None
-
-    quote = content["text"]
-    theme = content["theme"]
-    print(f'  Quote: "{quote}"')
-    print(f"  Theme: {theme}")
-
-    # 2. Safety check
-    print("[2/7] Safety check...")
-    safe, reason = is_safe(quote)
-    if not safe:
-        print(f"  REJECTED: {reason}")
-        return None
-    print("  Passed")
 
     # 3. Generate image (1080x1920) — used as thumbnail
     print("[3/7] Generating image...")

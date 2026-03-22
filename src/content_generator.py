@@ -93,10 +93,14 @@ Rules:
 
 Return ONLY the quote text, nothing else."""
 
-    text = generate(prompt, max_tokens=300)
+    text = generate(prompt, max_tokens=100)
     text = text.strip().strip('"').strip("'")
     # Enforce: replace any emdashes/endashes the LLM sneaks in
     text = text.replace("—", ".").replace("–", ".").replace(" . ", ". ")
+    # If LLM returned multiple lines/quotes, take only the first meaningful one
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    if lines:
+        text = lines[0].strip().strip('"').strip("'")
 
     content_hash = hashlib.sha256(text.lower().encode()).hexdigest()
     if content_exists(content_hash):

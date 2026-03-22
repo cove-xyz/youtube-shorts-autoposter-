@@ -4,7 +4,7 @@ from src.config import BLOCKED_TOPICS
 BLOCKED_PATTERNS = [
     r"\b(buy|sell|short)\b.*\b(stock|share|crypto|bitcoin|eth)\b",
     r"\bguaranteed\b.*\b(returns?|profit|income)\b",
-    r"\b(kill|murder|assault|weapon)\b",
+    r"\b(kill|murder|assault|firearm|gun|knife|bomb)\b",
     r"\b(sexy|nude|nsfw)\b",
     r"\bNFA\b",
     r"\bnot financial advice\b",
