@@ -1,0 +1,50 @@
+name: Update Analytics & Theme Scores
+
+on:
+  schedule:
+    # Once daily at 6am ET (10:00 UTC) — before the first post of the day
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  analytics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Write credentials from secrets
+        run: |
+          mkdir -p data
+          echo '${{ secrets.YOUTUBE_CLIENT_SECRET }}' > data/client_secret.json
+          echo '${{ secrets.YOUTUBE_TOKEN }}' > data/youtube_token.json
+
+      - name: Run analytics sync
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          YOUTUBE_CHANNEL_NAME: MASTERING MONEY
+          YOUTUBE_HANDLE: "@masteringmoneyxyz"
+          TIMEZONE: America/New_York
+        run: python run_youtube.py analytics
+
+      - name: Commit updated theme scores
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/theme_scores.json
+          git diff --cached --quiet || git commit -m "Auto-update theme scores from YouTube Analytics"
+          git push

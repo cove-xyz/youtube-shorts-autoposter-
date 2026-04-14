@@ -85,14 +85,14 @@ def generate_original_content(theme: str, inspiration: dict | None = None) -> di
 {inspiration_text}
 
 Rules:
-- 1-2 SHORT sentences. Every sentence ends with a period.
-- The kind of line that makes someone stop scrolling and screenshot it.
-- Use contrast, tension, or a hard truth. Examples of good structures:
-  * "Everyone wants X. Nobody wants Y."
-  * "The difference between X and Y is Z."
-  * "X does not care about Y."
-  * A direct challenge or uncomfortable truth.
-- Masculine, direct, zero-fluff tone
+- EXACTLY 2 sentences. Both end with a period.
+- THE FIRST SENTENCE IS THE HOOK. It must create instant tension, challenge the viewer, or make a provocative claim that demands the second sentence. Examples of great hooks:
+  * "Your savings account is losing you money."
+  * "Most men will die broke and it's their own fault."
+  * "Nobody cares about your potential."
+  * "Comfort is the most expensive thing you'll ever buy."
+- The second sentence delivers the payoff, insight, or hard truth.
+- Masculine, direct, zero-fluff tone. Write like someone who has earned the right to say this.
 - NO emdashes (—), NO endashes (–), NO dashes connecting clauses
 - NO colons or semicolons. Use periods instead.
 - NO attribution. This is original content.

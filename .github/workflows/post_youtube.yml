@@ -2,10 +2,12 @@ name: Post YouTube Short
 
 on:
   schedule:
-    # 3x/day — 9am, 2pm, 8pm Eastern (UTC-4 during EDT)
-    - cron: "0 13 * * *"   # 9:00 AM ET
-    - cron: "0 18 * * *"   # 2:00 PM ET
-    - cron: "0 0 * * *"    # 8:00 PM ET
+    # 5x/day — spread across peak engagement windows (Eastern / UTC-4 EDT)
+    - cron: "0 12 * * *"   #  8:00 AM ET — morning commute
+    - cron: "0 15 * * *"   # 11:00 AM ET — midday scroll
+    - cron: "0 18 * * *"   #  2:00 PM ET — afternoon break
+    - cron: "0 22 * * *"   #  6:00 PM ET — evening wind-down
+    - cron: "0 1 * * *"    #  9:00 PM ET — late night scroll
   workflow_dispatch:        # Manual trigger from GitHub UI
 
 jobs:

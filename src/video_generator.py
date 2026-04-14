@@ -8,7 +8,7 @@ The visual style:
 - White ALL CAPS text, heavy bold font
 - Sentence 1 appears INSTANTLY at frame 0 (no fade — hook the viewer)
 - Sentence 2 fades in at ~4s
-- 2s CTA at the end: "FOLLOW @masteringmoneyxyz"
+- CTA "FOLLOW @masteringmoneyxyz" subtle from start, bright in last 2s
 - @masteringmoneyxyz watermark visible the entire time
 - AI voiceover (ElevenLabs) mixed with background music
 """
@@ -160,18 +160,22 @@ def _render_frame(
         # Gap between sentences
         current_y += line_height // 2
 
-    # CTA: "FOLLOW @masteringmoneyxyz" — appears in last 2 seconds
+    # CTA: "FOLLOW FOR MORE" — subtle from start, brightens in last 2 seconds
+    cta_text = f"FOLLOW {YOUTUBE_HANDLE.upper()}"
+    cta_bbox = cta_font.getbbox(cta_text)
+    cta_width = cta_bbox[2] - cta_bbox[0]
     if show_cta:
-        cta_text = f"FOLLOW {YOUTUBE_HANDLE.upper()}"
-        cta_bbox = cta_font.getbbox(cta_text)
-        cta_width = cta_bbox[2] - cta_bbox[0]
+        # Last 2 seconds: bright white
         cta_val = int(255 * cta_alpha)
-        draw.text(
-            ((WIDTH - cta_width) // 2, HEIGHT - 420),
-            cta_text,
-            fill=(cta_val, cta_val, cta_val),
-            font=cta_font,
-        )
+    else:
+        # Rest of video: subtle hint
+        cta_val = 55
+    draw.text(
+        ((WIDTH - cta_width) // 2, HEIGHT - 420),
+        cta_text,
+        fill=(cta_val, cta_val, cta_val),
+        font=cta_font,
+    )
 
     # Handle watermark — always visible, above mobile player controls
     handle_text = YOUTUBE_HANDLE.upper()
@@ -264,7 +268,7 @@ def create_video(
     Timeline (for 2-sentence quote, ~12s total):
       0.0s         : Sentence 1 appears INSTANTLY (no fade — hook)
       4.0s – 4.3s  : Sentence 2 fades in
-      ~10s – 12s   : CTA "FOLLOW @masteringmoneyxyz" fades in
+      0.0s – end   : CTA subtle (opacity 55/255), brightens to full in last 2s
       @handle visible the whole time at bottom
 
     Voice + music mixed: voice at full volume, music bed at ~20%.
