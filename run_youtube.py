@@ -2,11 +2,13 @@
 """YouTube Shorts Auto-Poster - MASTERING MONEY
 
 Usage:
-    python run_youtube.py post        Generate and upload one Short
-    python run_youtube.py preview     Generate one Short without uploading
-    python run_youtube.py batch N     Generate and upload N Shorts (max 5)
-    python run_youtube.py verify      Test YouTube API credentials
-    python run_youtube.py queue       Show database queue status
+    python run_youtube.py post           Generate and upload one Short
+    python run_youtube.py preview        Generate one Short without uploading
+    python run_youtube.py batch N        Generate and upload N Shorts (max 5)
+    python run_youtube.py verify         Test YouTube API credentials
+    python run_youtube.py queue          Show database queue status
+    python run_youtube.py analytics      Fetch YouTube Analytics, update theme scores
+    python run_youtube.py analytics 7    Same but only last 7 days
 
 Designed to be run by Perplexity Computer or manually.
 Each invocation is self-contained — no daemon, no scheduler.
@@ -70,6 +72,18 @@ def cmd_verify():
     sys.exit(0 if success else 1)
 
 
+def cmd_analytics():
+    from src.analytics import run_analytics_sync
+    init_db()
+    days = 30
+    if len(sys.argv) >= 3:
+        try:
+            days = int(sys.argv[2])
+        except ValueError:
+            pass
+    run_analytics_sync(days=days)
+
+
 def cmd_queue():
     init_db()
     short_count = get_queue_count("short")
@@ -90,6 +104,7 @@ COMMANDS = {
     "batch": cmd_batch,
     "verify": cmd_verify,
     "queue": cmd_queue,
+    "analytics": cmd_analytics,
 }
 
 

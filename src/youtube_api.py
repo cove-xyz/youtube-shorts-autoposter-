@@ -1,5 +1,8 @@
 import json
+import os
 from pathlib import Path
+
+os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")  # Allow http://localhost for OAuth
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -9,8 +12,11 @@ from googleapiclient.http import MediaFileUpload
 
 from src.config import YOUTUBE_CLIENT_SECRET_PATH, YOUTUBE_TOKEN_PATH
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
-          "https://www.googleapis.com/auth/youtube.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/youtube.upload",
+    "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",
+]
 
 
 def _get_credentials() -> Credentials:

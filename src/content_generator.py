@@ -1,6 +1,8 @@
 import hashlib
+import json
 import random
 import requests
+from pathlib import Path
 from src.config import CONTENT_THEMES
 from src.llm import generate
 from src.database import content_exists, save_content_hash, get_theme_scores
@@ -21,6 +23,13 @@ THEME_LABELS = {
 
 def get_weighted_theme() -> str:
     scores = get_theme_scores()
+
+    # Fall back to theme_scores.json if DB is empty (e.g. GitHub Actions)
+    if not scores:
+        json_path = Path(__file__).resolve().parent.parent / "data" / "theme_scores.json"
+        if json_path.exists():
+            scores = json.loads(json_path.read_text())
+
     themes = CONTENT_THEMES
     weights = [scores.get(t, 1.0) for t in themes]
     return random.choices(themes, weights=weights, k=1)[0]
