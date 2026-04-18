@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Image Server (Flask)",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["-m", "src.image_server"],
+      "port": 5000
+    }
+  ]
+}

@@ -160,32 +160,19 @@ def _render_frame(
         # Gap between sentences
         current_y += line_height // 2
 
-    # CTA: "FOLLOW FOR MORE" — subtle from start, brightens in last 2 seconds
+    # CTA: "FOLLOW @MASTERINGMONEYXYZ" — visible whole video, brightens at end
     cta_text = f"FOLLOW {YOUTUBE_HANDLE.upper()}"
     cta_bbox = cta_font.getbbox(cta_text)
     cta_width = cta_bbox[2] - cta_bbox[0]
     if show_cta:
-        # Last 2 seconds: bright white
         cta_val = int(255 * cta_alpha)
     else:
-        # Rest of video: subtle hint
-        cta_val = 55
+        cta_val = 90
     draw.text(
-        ((WIDTH - cta_width) // 2, HEIGHT - 420),
+        ((WIDTH - cta_width) // 2, HEIGHT - 350),
         cta_text,
         fill=(cta_val, cta_val, cta_val),
         font=cta_font,
-    )
-
-    # Handle watermark — always visible, above mobile player controls
-    handle_text = YOUTUBE_HANDLE.upper()
-    brand_bbox = brand_font.getbbox(handle_text)
-    brand_width = brand_bbox[2] - brand_bbox[0]
-    draw.text(
-        ((WIDTH - brand_width) // 2, HEIGHT - 300),
-        handle_text,
-        fill=(80, 80, 80),
-        font=brand_font,
     )
 
     return img.tobytes()
