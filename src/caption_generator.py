@@ -93,18 +93,23 @@ Quote: "{quote_text}"
 Theme: {theme}
 
 Rules:
-- 2-3 sentences that expand on the quote's meaning
-- First sentence should hook the reader — start with a bold statement or question
-- End with a clear call to action: "Subscribe for daily motivation" or "Follow for more"
+- 1-2 sentences that expand on the idea with a strong opinion
+- End with a SPECIFIC engagement question that makes people want to comment. NOT generic like "What do you think?" — instead ask something debatable:
+  * "Agree or disagree?"
+  * "What age did you figure this out?"
+  * "Type 'DISCIPLINE' if this hit hard."
+  * "Be honest. How much of your paycheck do you actually keep?"
 - Masculine, direct tone
 - NO emojis, NO hashtags in the description
 - Do NOT give specific financial advice
-- Keep it under 300 characters total
+- Keep it under 250 characters total
 
 Return ONLY the description text."""
 
-    desc = generate(prompt, max_tokens=400)
-    desc += f"\n\nSubscribe to {YOUTUBE_CHANNEL_NAME} for daily motivation."
+    desc = generate(prompt, max_tokens=300)
+    # Clean up any emdashes/endashes the LLM sneaks in
+    desc = desc.replace("—", " - ").replace("–", " - ")
+    desc += f"\n\nSubscribe to {YOUTUBE_CHANNEL_NAME} for daily money motivation."
 
     # Visible hashtags — keep it to 3-5, relevant to theme
     theme_hashtags = {

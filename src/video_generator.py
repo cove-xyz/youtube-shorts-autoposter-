@@ -32,6 +32,15 @@ from src.config import (
 WIDTH, HEIGHT = 1080, 1920
 FPS = 24
 
+# Accent color palette — one is picked randomly per video for visual variety
+ACCENT_COLORS = [
+    (0, 200, 150),    # teal/mint
+    (100, 140, 255),  # soft blue
+    (200, 160, 50),   # gold
+    (180, 80, 80),    # muted red
+    (140, 100, 220),  # purple
+]
+
 # --- Font loading ---
 
 FONT_CANDIDATES_BOLD = [
@@ -130,10 +139,24 @@ def _render_frame(
     y_start: int,
     show_cta: bool = False,
     cta_alpha: float = 0.0,
+    accent_color: tuple = (0, 200, 150),
+    progress: float = 0.0,
 ) -> bytes:
     """Render a single video frame and return raw RGB bytes."""
     img = Image.new("RGB", (WIDTH, HEIGHT), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
+
+    # --- Progress bar at top (thin accent-colored line) ---
+    bar_height = 4
+    bar_width = int(WIDTH * progress)
+    if bar_width > 0:
+        draw.rectangle([0, 0, bar_width, bar_height], fill=accent_color)
+
+    # --- Accent line above the text block ---
+    line_w = 60
+    line_y = y_start - 40
+    line_x = (WIDTH - line_w) // 2
+    draw.rectangle([line_x, line_y, line_x + line_w, line_y + 3], fill=accent_color)
 
     current_y = y_start
 
@@ -168,10 +191,16 @@ def _render_frame(
         cta_val = int(255 * cta_alpha)
     else:
         cta_val = 90
+    # CTA in accent color when brightened, gray otherwise
+    if show_cta and cta_alpha > 0.5:
+        ar, ag, ab = accent_color
+        cta_fill = (int(ar * cta_alpha), int(ag * cta_alpha), int(ab * cta_alpha))
+    else:
+        cta_fill = (cta_val, cta_val, cta_val)
     draw.text(
         ((WIDTH - cta_width) // 2, HEIGHT - 350),
         cta_text,
-        fill=(cta_val, cta_val, cta_val),
+        fill=cta_fill,
         font=cta_font,
     )
 
@@ -310,8 +339,11 @@ def create_video(
     brand_font = _find_font(32, FONT_CANDIDATES_LIGHT)
     cta_font = _find_font(36, FONT_CANDIDATES_BOLD)
 
-    # Center vertically
-    y_start = (HEIGHT - total_text_height) // 2 - 40
+    # Center vertically (offset down a bit for accent line above)
+    y_start = (HEIGHT - total_text_height) // 2 - 20
+
+    # Pick accent color for this video
+    accent_color = random.choice(ACCENT_COLORS)
 
     # --- Timeline ---
     num_sentences = len(sentences)
@@ -416,6 +448,8 @@ def create_video(
         show_cta = t >= cta_start
         cta_alpha = min(1.0, (t - cta_start) / 0.4) if show_cta else 0.0
 
+        progress = (frame_num + 1) / total_frames
+
         frame_bytes = _render_frame(
             sentences=sentences,
             visible_up_to=visible_up_to,
@@ -428,6 +462,8 @@ def create_video(
             y_start=y_start,
             show_cta=show_cta,
             cta_alpha=cta_alpha,
+            accent_color=accent_color,
+            progress=progress,
         )
         try:
             proc.stdin.write(frame_bytes)

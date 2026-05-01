@@ -86,19 +86,25 @@ def generate_original_content(theme: str, inspiration: dict | None = None) -> di
 
 Rules:
 - EXACTLY 2 sentences. Both end with a period.
-- THE FIRST SENTENCE IS THE HOOK. It must create instant tension, challenge the viewer, or make a provocative claim that demands the second sentence. Examples of great hooks:
-  * "Your savings account is losing you money."
-  * "Most men will die broke and it's their own fault."
-  * "Nobody cares about your potential."
-  * "Comfort is the most expensive thing you'll ever buy."
-- The second sentence delivers the payoff, insight, or hard truth.
+- THE FIRST SENTENCE IS THE HOOK. It must be SHORT (under 10 words), specific, and create instant tension. The viewer decides in 0.5 seconds whether to keep watching.
+- BANNED hook patterns (overused, YouTube ignores these now):
+  * "Most people..." — NEVER start with this. It's the #1 most saturated opener on Shorts.
+  * "Everyone wants..." / "Nobody tells you..." / "They don't want you to know..."
+  * Any generic opener that could apply to anything. Be SPECIFIC.
+- GREAT hook patterns (use these):
+  * A specific number or stat: "Your $10,000 savings lost $800 this year."
+  * A direct accusation: "You're broke because you're comfortable."
+  * A counterintuitive claim: "The rich don't budget."
+  * A provocative question framed as a statement: "Saving money is making you poor."
+  * Name a specific pain: "That $7 latte is a $2 million retirement decision."
+- The second sentence delivers a SPECIFIC payoff or hard truth. It should make the viewer want to SHARE this with someone. Avoid vague advice like "master your choices" — instead give a concrete insight or consequence.
 - Masculine, direct, zero-fluff tone. Write like someone who has earned the right to say this.
+- KEEP IT SHORT. Under 120 characters total is ideal. The best-performing Shorts quotes are punchy, not wordy. Every word must earn its place.
 - NO emdashes (—), NO endashes (–), NO dashes connecting clauses
 - NO colons or semicolons. Use periods instead.
 - NO attribution. This is original content.
 - NO hashtags, NO emojis, NO quotation marks
 - Do NOT give specific financial advice or mention specific stocks/crypto
-- 60-140 characters ideal, 160 characters absolute max
 
 Return ONLY the quote text, nothing else."""
 
