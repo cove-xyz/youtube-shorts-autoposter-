@@ -5,11 +5,11 @@ then pipes raw frames to ffmpeg for encoding with voice + music.
 
 The visual style:
 - 1080x1920 pure black background
-- White ALL CAPS text, heavy bold font
-- Sentence 1 appears INSTANTLY at frame 0 (no fade — hook the viewer)
-- Sentence 2 fades in at ~4s
+- Sentence 1 (hook) in GOLD — stops the scroll
+- Sentence 2 in white, fades in at ~4s
+- Large bold font (up to 72pt) for maximum screen presence
+- Subtle progress bar at top
 - CTA "FOLLOW @masteringmoneyxyz" subtle from start, bright in last 2s
-- @masteringmoneyxyz watermark visible the entire time
 - AI voiceover (ElevenLabs) mixed with background music
 """
 
@@ -32,14 +32,10 @@ from src.config import (
 WIDTH, HEIGHT = 1080, 1920
 FPS = 24
 
-# Accent color palette — one is picked randomly per video for visual variety
-ACCENT_COLORS = [
-    (0, 200, 150),    # teal/mint
-    (100, 140, 255),  # soft blue
-    (200, 160, 50),   # gold
-    (180, 80, 80),    # muted red
-    (140, 100, 220),  # purple
-]
+# Hook sentence color — warm gold stands out against black, stops the scroll
+HOOK_COLOR = (255, 200, 60)
+# Progress bar color — subtle white
+PROGRESS_COLOR = (80, 80, 80)
 
 # --- Font loading ---
 
@@ -139,24 +135,17 @@ def _render_frame(
     y_start: int,
     show_cta: bool = False,
     cta_alpha: float = 0.0,
-    accent_color: tuple = (0, 200, 150),
     progress: float = 0.0,
 ) -> bytes:
     """Render a single video frame and return raw RGB bytes."""
     img = Image.new("RGB", (WIDTH, HEIGHT), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # --- Progress bar at top (thin accent-colored line) ---
-    bar_height = 4
+    # --- Progress bar at top (thin, subtle) ---
+    bar_height = 3
     bar_width = int(WIDTH * progress)
     if bar_width > 0:
-        draw.rectangle([0, 0, bar_width, bar_height], fill=accent_color)
-
-    # --- Accent line above the text block ---
-    line_w = 60
-    line_y = y_start - 40
-    line_x = (WIDTH - line_w) // 2
-    draw.rectangle([line_x, line_y, line_x + line_w, line_y + 3], fill=accent_color)
+        draw.rectangle([0, 0, bar_width, bar_height], fill=PROGRESS_COLOR)
 
     current_y = y_start
 
@@ -170,8 +159,13 @@ def _render_frame(
         else:
             alpha = fade_alpha
 
-        color_val = int(255 * alpha)
-        color = (color_val, color_val, color_val)
+        # Sentence 0 (hook) = gold, rest = white
+        if s_idx == 0:
+            hr, hg, hb = HOOK_COLOR
+            color = (int(hr * alpha), int(hg * alpha), int(hb * alpha))
+        else:
+            color_val = int(255 * alpha)
+            color = (color_val, color_val, color_val)
 
         for line in lines:
             bbox = font.getbbox(line)
@@ -190,13 +184,8 @@ def _render_frame(
     if show_cta:
         cta_val = int(255 * cta_alpha)
     else:
-        cta_val = 90
-    # CTA in accent color when brightened, gray otherwise
-    if show_cta and cta_alpha > 0.5:
-        ar, ag, ab = accent_color
-        cta_fill = (int(ar * cta_alpha), int(ag * cta_alpha), int(ab * cta_alpha))
-    else:
-        cta_fill = (cta_val, cta_val, cta_val)
+        cta_val = 70
+    cta_fill = (cta_val, cta_val, cta_val)
     draw.text(
         ((WIDTH - cta_width) // 2, HEIGHT - 350),
         cta_text,
@@ -325,8 +314,8 @@ def create_video(
     padding = 80
     max_text_width = WIDTH - (padding * 2)
 
-    # Find font size that fits all sentences
-    for font_size in range(58, 28, -2):
+    # Find font size that fits — start large for maximum visual impact
+    for font_size in range(72, 34, -2):
         font = _find_font(font_size)
         line_height = font_size + 22
         wrapped = [_wrap_text(s, font, max_text_width) for s in sentences]
@@ -339,11 +328,8 @@ def create_video(
     brand_font = _find_font(32, FONT_CANDIDATES_LIGHT)
     cta_font = _find_font(36, FONT_CANDIDATES_BOLD)
 
-    # Center vertically (offset down a bit for accent line above)
-    y_start = (HEIGHT - total_text_height) // 2 - 20
-
-    # Pick accent color for this video
-    accent_color = random.choice(ACCENT_COLORS)
+    # Center vertically
+    y_start = (HEIGHT - total_text_height) // 2 - 40
 
     # --- Timeline ---
     num_sentences = len(sentences)
@@ -462,7 +448,6 @@ def create_video(
             y_start=y_start,
             show_cta=show_cta,
             cta_alpha=cta_alpha,
-            accent_color=accent_color,
             progress=progress,
         )
         try:

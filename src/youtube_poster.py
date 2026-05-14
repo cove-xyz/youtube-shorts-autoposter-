@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from src.config import YOUTUBE_CHANNEL_NAME, ELEVENLABS_ENABLED
-from src.content_generator import generate_content
+from src.content_generator import generate_content, _save_posted_title
 from src.caption_generator import generate_youtube_description, generate_youtube_tags
 from src.image_generator import generate_youtube_image
 from src.safety_filter import is_safe, filter_caption
@@ -108,7 +108,7 @@ def create_and_post_short() -> dict | None:
         )
         return None
 
-    # Save to DB
+    # Save to DB + title history for dedup
     post_id = queue_post(
         content_text=quote,
         caption=description,
@@ -118,6 +118,7 @@ def create_and_post_short() -> dict | None:
         status="posted",
     )
     mark_posted(post_id, result["id"])
+    _save_posted_title(title)
 
     # Clean up video file (images are cheap, videos are large)
     try:
