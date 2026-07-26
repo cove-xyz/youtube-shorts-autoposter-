@@ -2,7 +2,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from src.config import YOUTUBE_CHANNEL_NAME, (
+from src.config import (
+    YOUTUBE_CHANNEL_NAME,
     CONTENT_THEMES,
     SMTP_HOST,
     SMTP_PORT,
