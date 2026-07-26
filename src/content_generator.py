@@ -21,11 +21,14 @@ THEME_LABELS = {
     "discipline": "discipline and consistency",
     "investing": "investing and smart money moves",
     "entrepreneurship": "entrepreneurship and building businesses",
-    # Label deliberately avoids the phrase "financial freedom" — the canon bans it
-    # as dead from overuse, and asking for a theme in words the model may not use
-    # is a contradiction that costs generations. The KEY is unchanged so the
-    # theme's scoring history survives.
-    "financial_freedom": "owning your own time and answering to nobody",
+    # Renamed from financial_freedom. The canon bans that phrase as *promise*
+    # vocabulary — "achieve financial freedom" is what someone selling a course
+    # says, which makes it the enemy's own wording — and asking for a theme in
+    # words the model may not use is a contradiction that costs generations.
+    # The key was renamed rather than just the label because the theme had zero
+    # videos and sat at the neutral 1.0 default, so there was no scoring history
+    # to lose. That will never be true again.
+    "autonomy": "owning your own time and answering to nobody",
     "productivity": "productivity and peak performance",
     "leadership": "leadership and influence",
     "stoicism": "stoic philosophy and emotional control",

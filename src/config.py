@@ -92,7 +92,7 @@ CONTENT_THEMES = [
     "discipline",
     "investing",
     "entrepreneurship",
-    "financial_freedom",
+    "autonomy",
     "productivity",
     "leadership",
     "stoicism",

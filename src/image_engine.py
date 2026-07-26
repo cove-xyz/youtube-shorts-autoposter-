@@ -95,7 +95,7 @@ THEME_SUBJECTS = {
     "mindset": "a lone fisherman hauling a line on a small boat in flat grey light",
     "investing": "an older man at a kitchen table with paperwork, mid-thought, looking away",
     "entrepreneurship": "a woman opening the shutters of her own small shop before dawn",
-    "financial_freedom": "a man swimming alone off a rocky coast at first light",
+    "autonomy": "a man swimming alone off a rocky coast at first light",
     "productivity": "a mechanic under a raised car, arms up, caught mid-task",
     "leadership": "a foreman on a building site talking to two workers, gesturing",
     "stoicism": "a stonemason chipping at a block, dust in the air, face half turned",
