@@ -19,7 +19,8 @@ from googleapiclient.discovery import build
 
 from src.youtube_api import _get_credentials
 from src.database import get_db, init_db, update_theme_score
-from src.config import CONTENT_THEMES, DATA_DIR
+from src.config import CONTENT_THEMES, DATA_DIR, HOOK_STYLES
+from src.variants import variants_by_video_id
 
 
 # Map description hashtags back to themes
@@ -183,6 +184,89 @@ W_WATCH = 0.15   # avg watch-through %
 SUBS_PRIOR_KVIEWS = 2.0
 
 
+def _score_groups(groups: dict[str, list[dict]], all_stats: list[dict]) -> dict[str, dict]:
+    """Score any grouping of videos on the same composite signal.
+
+    Grouping-agnostic on purpose: themes, hook archetypes, durations and post
+    times are all just different ways to bucket the same rows, so a new dial
+    needs a `groups` dict and nothing else.
+    """
+    if not groups:
+        return {}
+
+    # Channel-wide conversion rate, used as the smoothing prior
+    total_views = sum(s["views"] for s in all_stats) or 1
+    total_subs = sum(s.get("subscribers_gained", 0) for s in all_stats)
+    channel_subs_per_1k = (total_subs / total_views) * 1000
+
+    data = {}
+    for key, videos in groups.items():
+        group_views = sum(v["views"] for v in videos)
+        group_subs = sum(v.get("subscribers_gained", 0) for v in videos)
+
+        # Smoothed subs per 1k views, shrunk toward the channel rate
+        kviews = group_views / 1000
+        subs_per_1k = (
+            (group_subs + SUBS_PRIOR_KVIEWS * channel_subs_per_1k)
+            / (kviews + SUBS_PRIOR_KVIEWS)
+        )
+
+        data[key] = {
+            "count": len(videos),
+            "avg_views": group_views / len(videos),
+            "avg_watch_pct": sum(v["avg_view_pct"] for v in videos) / len(videos),
+            "total_views": group_views,
+            "total_subs": group_subs,
+            "subs_per_1k": subs_per_1k,
+        }
+
+    # Normalize to 0.5–2.0 range using composite signal
+    max_views = max(d["avg_views"] for d in data.values()) or 1
+    max_watch = max(d["avg_watch_pct"] for d in data.values()) or 1
+    max_subs = max(d["subs_per_1k"] for d in data.values()) or 1
+
+    for d in data.values():
+        subs_norm = d["subs_per_1k"] / max_subs       # 0–1
+        view_norm = d["avg_views"] / max_views        # 0–1
+        watch_norm = d["avg_watch_pct"] / max_watch   # 0–1
+        composite = (W_SUBS * subs_norm) + (W_VIEWS * view_norm) + (W_WATCH * watch_norm)
+        d["score"] = round(0.5 + (composite * 1.5), 3)  # 0.5–2.0
+
+    return data
+
+
+def compute_hook_scores(stats: list[dict]) -> dict[str, dict]:
+    """Score hook archetypes, joined to videos via the variant log.
+
+    Only videos published after variant logging went in can be attributed, so
+    this starts empty and fills up at the posting rate. Unattributed archetypes
+    stay at 1.0, which keeps sampling uniform until real data arrives.
+    """
+    variants = variants_by_video_id()
+
+    groups: dict[str, list[dict]] = {}
+    for s in stats:
+        variant = variants.get(s["video_id"])
+        if not variant:
+            continue
+        hook = variant.get("hook_style")
+        if hook in HOOK_STYLES:
+            groups.setdefault(hook, []).append(s)
+
+    attributed = [s for s in stats if s["video_id"] in variants]
+    hook_data = _score_groups(groups, attributed or stats)
+
+    # Untried archetypes keep a neutral score
+    for hook in HOOK_STYLES:
+        if hook not in hook_data:
+            hook_data[hook] = {
+                "count": 0, "avg_views": 0, "avg_watch_pct": 0,
+                "total_views": 0, "total_subs": 0, "subs_per_1k": 0.0, "score": 1.0,
+            }
+
+    return hook_data
+
+
 def compute_theme_scores(stats: list[dict]) -> dict[str, dict]:
     """Compute theme scores directly from YouTube stats (not the DB).
 
@@ -196,51 +280,12 @@ def compute_theme_scores(stats: list[dict]) -> dict[str, dict]:
         if theme:
             by_theme.setdefault(theme, []).append(s)
 
-    if not by_theme:
+    theme_data = _score_groups(by_theme, stats)
+    if not theme_data:
         return {}
 
-    # Channel-wide conversion rate, used as the smoothing prior
-    total_views = sum(s["views"] for s in stats) or 1
-    total_subs = sum(s.get("subscribers_gained", 0) for s in stats)
-    channel_subs_per_1k = (total_subs / total_views) * 1000
-
-    # Compute per-theme aggregates
-    theme_data = {}
-    for theme, videos in by_theme.items():
-        avg_views = sum(v["views"] for v in videos) / len(videos)
-        avg_watch_pct = sum(v["avg_view_pct"] for v in videos) / len(videos)
-        theme_views = sum(v["views"] for v in videos)
-        theme_subs = sum(v.get("subscribers_gained", 0) for v in videos)
-
-        # Smoothed subs per 1k views, shrunk toward the channel rate
-        kviews = theme_views / 1000
-        subs_per_1k = (
-            (theme_subs + SUBS_PRIOR_KVIEWS * channel_subs_per_1k)
-            / (kviews + SUBS_PRIOR_KVIEWS)
-        )
-
-        theme_data[theme] = {
-            "count": len(videos),
-            "avg_views": avg_views,
-            "avg_watch_pct": avg_watch_pct,
-            "total_views": theme_views,
-            "total_subs": theme_subs,
-            "subs_per_1k": subs_per_1k,
-        }
-
-    # Normalize to 0.5–2.0 range using composite signal
-    max_views = max(d["avg_views"] for d in theme_data.values()) or 1
-    max_watch = max(d["avg_watch_pct"] for d in theme_data.values()) or 1
-    max_subs = max(d["subs_per_1k"] for d in theme_data.values()) or 1
-
     for theme, d in theme_data.items():
-        subs_norm = d["subs_per_1k"] / max_subs       # 0–1
-        view_norm = d["avg_views"] / max_views        # 0–1
-        watch_norm = d["avg_watch_pct"] / max_watch   # 0–1
-        composite = (W_SUBS * subs_norm) + (W_VIEWS * view_norm) + (W_WATCH * watch_norm)
-        score = round(0.5 + (composite * 1.5), 3)    # 0.5–2.0
-        d["score"] = score
-        update_theme_score(theme, score, d["count"], round(d["avg_views"], 1))
+        update_theme_score(theme, d["score"], d["count"], round(d["avg_views"], 1))
 
     # Untested themes keep neutral score
     for theme in CONTENT_THEMES:
@@ -254,17 +299,35 @@ def compute_theme_scores(stats: list[dict]) -> dict[str, dict]:
     return theme_data
 
 
-def export_theme_scores_json(theme_data: dict[str, dict]):
-    """Export theme scores to data/theme_scores.json for GitHub Actions."""
-    scores = {theme: d["score"] for theme, d in theme_data.items()}
-    out_path = DATA_DIR / "theme_scores.json"
+def export_scores_json(data: dict[str, dict], filename: str):
+    """Export a score table for the generator to read on the next run."""
+    scores = {key: d["score"] for key, d in data.items()}
+    out_path = DATA_DIR / filename
     out_path.write_text(json.dumps(scores, indent=2))
-    print(f"\n  Exported to {out_path}")
+    print(f"  Exported to {out_path}")
 
 
-def print_report(stats: list[dict], theme_data: dict[str, dict]):
+def export_theme_scores_json(theme_data: dict[str, dict]):
+    """Back-compat wrapper."""
+    export_scores_json(theme_data, "theme_scores.json")
+
+
+def _print_score_table(data: dict[str, dict], label: str, key_header: str):
+    """Render one dial's score table, best first."""
+    print(f"\n=== {label} ===")
+    print(f"{'Score':>6}  {'Videos':>6}  {'Avg Views':>9}  {'Watch%':>7}  {'Subs':>5}  {'Subs/1k':>8}  {key_header}")
+    print("-" * 78)
+    for key, d in sorted(data.items(), key=lambda x: x[1]["score"], reverse=True):
+        print(
+            f"{d['score']:>6.2f}  {d['count']:>6}  {d['avg_views']:>9.0f}  "
+            f"{d['avg_watch_pct']:>6.1f}%  {d.get('total_subs', 0):>5}  "
+            f"{d.get('subs_per_1k', 0):>8.2f}  {key}"
+        )
+
+
+def print_report(stats: list[dict], theme_data: dict[str, dict],
+                 hook_data: dict[str, dict] | None = None):
     """Print human-readable analytics report."""
-    themed = [s for s in stats if s.get("theme")]
     unthemed = [s for s in stats if not s.get("theme")]
 
     print(f"\n=== YOUTUBE SHORTS ANALYTICS ({len(stats)} videos) ===")
@@ -286,18 +349,18 @@ def print_report(stats: list[dict], theme_data: dict[str, dict]):
     print(f"\n  Channel conversion: {total_subs} subs / {total_views} views "
           f"= {(total_subs / total_views) * 1000:.2f} per 1k views")
 
-    print(f"\n=== THEME SCORES (learning loop) ===")
-    print(f"{'Score':>6}  {'Videos':>6}  {'Avg Views':>9}  {'Watch%':>7}  {'Subs':>5}  {'Subs/1k':>8}  {'Theme'}")
-    print("-" * 78)
-    sorted_themes = sorted(theme_data.items(), key=lambda x: x[1]["score"], reverse=True)
-    for theme, d in sorted_themes:
-        print(
-            f"{d['score']:>6.2f}  {d['count']:>6}  {d['avg_views']:>9.0f}  "
-            f"{d['avg_watch_pct']:>6.1f}%  {d.get('total_subs', 0):>5}  "
-            f"{d.get('subs_per_1k', 0):>8.2f}  {theme}"
-        )
+    _print_score_table(theme_data, "THEME SCORES (learning loop)", "Theme")
 
-    print("\n(Score 0.5–2.0 | higher = content generator picks this theme more often)")
+    if hook_data:
+        _print_score_table(hook_data, "HOOK ARCHETYPE SCORES (learning loop)", "Hook style")
+        attributed = sum(d["count"] for d in hook_data.values())
+        if attributed == 0:
+            print("\n  No videos attributed to a hook archetype yet — every archetype")
+            print("  sits at 1.0 (uniform sampling) until the variant log fills up.")
+        else:
+            print(f"\n  {attributed} videos attributed via data/post_variants.json")
+
+    print("\n(Score 0.5–2.0 | higher = content generator picks this option more often)")
     print(f"(Signal: {int(W_SUBS * 100)}% subs-per-1k-views + {int(W_VIEWS * 100)}% avg views "
           f"+ {int(W_WATCH * 100)}% watch-through)")
     print(f"(Subs/1k is smoothed toward the channel rate with a {SUBS_PRIOR_KVIEWS}k-view prior)")
@@ -322,5 +385,11 @@ def run_analytics_sync(days: int = 30):
 
     # Compute scores from ALL videos (not just DB-tracked ones)
     theme_data = compute_theme_scores(stats)
-    export_theme_scores_json(theme_data)
-    print_report(stats, theme_data)
+    export_scores_json(theme_data, "theme_scores.json")
+
+    # Hook archetypes are scored only over videos present in the variant log,
+    # so this fills in from zero as new posts accumulate.
+    hook_data = compute_hook_scores(stats)
+    export_scores_json(hook_data, "hook_scores.json")
+
+    print_report(stats, theme_data, hook_data)

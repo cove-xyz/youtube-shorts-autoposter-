@@ -59,9 +59,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/posted_titles.json
+          # post_variants.json is the attribution log — if it is not committed,
+          # the hook-archetype scoring has nothing to join against.
+          git add data/posted_titles.json data/post_variants.json
           git diff --cached --quiet && exit 0
-          git commit -m "Auto-update posted titles after upload"
+          git commit -m "Auto-update posted titles and variant log after upload"
           # Rebase onto any commit the analytics job or the other daily slot
           # pushed while this run was working. Without this, the push either
           # fails or lands on a stale base and silently drops their titles —

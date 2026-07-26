@@ -77,6 +77,28 @@ CONTENT_THEMES = [
     "self_improvement",
 ]
 
+# Hook archetypes — the opening sentence structure.
+#
+# The first sentence is the strongest performance lever we actually control, so
+# these are sampled by learned weight (data/hook_scores.json) rather than
+# uniformly at random. Keys are STABLE IDENTIFIERS used for score attribution:
+# renaming one discards its learning history, so add new archetypes instead of
+# editing existing keys.
+#
+# `future_self` is split out from the generic `vivid_scenario` because the
+# future-self frame appeared in 4 of the 8 best-converting videos as of
+# 2026-07-26 — splitting it lets the loop confirm or refute that.
+HOOK_STYLES = {
+    "dollar_math": "a specific dollar amount or number that shocks (e.g. '$7 a day becomes $2.1 million')",
+    "you_accusation": "a direct 'you' accusation that stings (e.g. 'You're subsidizing someone else's dream')",
+    "counterintuitive": "a counterintuitive claim that sounds wrong but is true (e.g. 'Saving money is making you poor')",
+    "comparison": "a comparison between two things (e.g. 'A gym membership costs $50. Diabetes costs $500,000')",
+    "time_urgency": "a time-based urgency (e.g. 'Every hour you delay costs you $11 in lost compound growth')",
+    "status_challenge": "a status/identity challenge (e.g. 'Rich people don't have savings accounts')",
+    "future_self": "a confrontation with their future self watching them right now (e.g. 'Your future self is watching you scroll')",
+    "vivid_scenario": "a vivid concrete scenario that is not about their future self (e.g. 'You are renting your life by the hour')",
+}
+
 # Safety filter keywords to avoid
 BLOCKED_TOPICS = [
     "buy this stock",

@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 
-from src.config import YOUTUBE_CHANNEL_NAME, ELEVENLABS_ENABLED
+from src.config import YOUTUBE_CHANNEL_NAME, ELEVENLABS_ENABLED, YOUTUBE_VIDEO_DURATION
 from src.content_generator import generate_content, _save_posted_title
+from src.variants import record_variant
 from src.caption_generator import generate_youtube_description, generate_youtube_tags
 from src.image_generator import generate_youtube_image
 from src.safety_filter import is_safe, filter_caption
@@ -122,6 +123,19 @@ def create_and_post_short() -> dict | None:
     # 65 chars, which drops the payoff sentence and leaves the dedup check
     # comparing hooks only.
     _save_posted_title(quote)
+
+    # Log every generation choice against the video_id so analytics can attribute
+    # performance back to them. duration/voice are constants today, but recording
+    # them now means they become learnable the moment they start varying.
+    record_variant(
+        result["id"],
+        theme=theme,
+        hook_style=content.get("hook_style"),
+        duration_s=YOUTUBE_VIDEO_DURATION,
+        voice=ELEVENLABS_ENABLED,
+        source=content.get("source"),
+        quote=quote,
+    )
 
     # Clean up video file (images are cheap, videos are large)
     try:

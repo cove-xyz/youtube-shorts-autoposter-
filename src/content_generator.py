@@ -4,7 +4,7 @@ import json
 import random
 import requests
 from pathlib import Path
-from src.config import CONTENT_THEMES, DATA_DIR
+from src.config import CONTENT_THEMES, DATA_DIR, HOOK_STYLES
 from src.llm import generate
 from src.database import content_exists, save_content_hash, get_theme_scores
 
@@ -123,18 +123,47 @@ def _is_too_similar(new_text: str, existing_titles: list[str], threshold: float 
     return False
 
 
+def _load_scores_json(filename: str) -> dict[str, float]:
+    """Load a learned score file. Empty dict if absent or malformed.
+
+    An empty result means every option falls back to weight 1.0, i.e. uniform
+    sampling — the correct cold-start for a dial with no data yet.
+    """
+    path = DATA_DIR / filename
+    if path.exists():
+        try:
+            data = json.loads(path.read_text())
+            if isinstance(data, dict):
+                return {k: float(v) for k, v in data.items()}
+        except (json.JSONDecodeError, OSError, TypeError, ValueError):
+            pass
+    return {}
+
+
+def _weighted_pick(options: list[str], scores: dict[str, float]) -> str:
+    """Sample one option, weighted by learned score (default 1.0)."""
+    weights = [max(scores.get(o, 1.0), 0.01) for o in options]
+    return random.choices(options, weights=weights, k=1)[0]
+
+
 def get_weighted_theme() -> str:
     scores = get_theme_scores()
 
     # Fall back to theme_scores.json if DB is empty (e.g. GitHub Actions)
     if not scores:
-        json_path = DATA_DIR / "theme_scores.json"
-        if json_path.exists():
-            scores = json.loads(json_path.read_text())
+        scores = _load_scores_json("theme_scores.json")
 
-    themes = CONTENT_THEMES
-    weights = [scores.get(t, 1.0) for t in themes]
-    return random.choices(themes, weights=weights, k=1)[0]
+    return _weighted_pick(CONTENT_THEMES, scores)
+
+
+def get_weighted_hook() -> str:
+    """Pick a hook archetype key, weighted by learned performance.
+
+    Previously this was random.choice over prose strings with no key, no record,
+    and no scoring — so the dial that the data suggests matters most was pure
+    noise. Falls back to uniform until hook_scores.json has data.
+    """
+    return _weighted_pick(list(HOOK_STYLES.keys()), _load_scores_json("hook_scores.json"))
 
 
 def fetch_quote() -> dict | None:
@@ -174,17 +203,9 @@ PREVIOUSLY POSTED (do NOT repeat these concepts, phrases, or structures):
 
 Your quote MUST be completely different from ALL of the above. Different concept, different angle, different words. If you catch yourself writing something similar, start over."""
 
-    # Pick a random hook structure to force variety
-    hook_styles = [
-        "a specific dollar amount or number that shocks (e.g. '$7 a day becomes $2.1 million')",
-        "a direct 'you' accusation that stings (e.g. 'You're subsidizing someone else's dream')",
-        "a counterintuitive claim that sounds wrong but is true (e.g. 'Saving money is making you poor')",
-        "a comparison between two things (e.g. 'A gym membership costs $50. Diabetes costs $500,000')",
-        "a time-based urgency (e.g. 'Every hour you delay costs you $11 in lost compound growth')",
-        "a status/identity challenge (e.g. 'Rich people don't have savings accounts')",
-        "a vivid scenario (e.g. 'Your future self is watching you scroll right now')",
-    ]
-    chosen_hook = random.choice(hook_styles)
+    # Pick a hook archetype, weighted by learned conversion performance
+    hook_style = get_weighted_hook()
+    chosen_hook = HOOK_STYLES[hook_style]
 
     prompt = f"""Generate a single powerful, original quote about {theme_desc} for a finance/motivation brand called "MASTERING MONEY".
 {inspiration_text}
@@ -227,7 +248,8 @@ Return ONLY the quote text, nothing else."""
         return None
 
     save_content_hash(content_hash)
-    return {"text": text, "theme": theme, "source": "original"}
+    # hook_style rides along so the poster can record it against the video_id
+    return {"text": text, "theme": theme, "hook_style": hook_style, "source": "original"}
 
 
 def generate_content(post_type: str = "feed") -> dict | None:
