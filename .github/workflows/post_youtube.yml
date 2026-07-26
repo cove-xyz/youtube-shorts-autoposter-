@@ -47,7 +47,13 @@ jobs:
       - name: Post one YouTube Short
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          LLM_MODEL: deepseek/deepseek-chat-v3-0324
+          # Not a frontier model on purpose — see src/config.py. DeepSeek averaged
+          # 58 chars against Opus 5's 94 and Sonnet 5's 115 on identical prompts,
+          # and the task is compression. Override with an LLM_MODEL repo variable
+          # to run a different writer as an A/B arm.
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek/deepseek-chat-v3-0324' }}
+          JUDGE_MODEL: ${{ vars.JUDGE_MODEL || 'anthropic/claude-haiku-4.5' }}
+          CANDIDATES_PER_POST: ${{ vars.CANDIDATES_PER_POST || '6' }}
           YOUTUBE_CHANNEL_NAME: MASTERING MONEY
           YOUTUBE_HANDLE: "@masteringmoneyxyz"
           YOUTUBE_VIDEO_DURATION: "10"

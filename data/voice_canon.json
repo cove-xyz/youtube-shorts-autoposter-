@@ -1,0 +1,62 @@
+{
+  "_comment": "The voice of the account. Read by content_generator on every call. Exemplars teach; adjectives do not. Deliberately NOT assembled from the 223 historical titles — those are the register being replaced. Only proven lines carry over, marked with why they worked.",
+
+  "principle": "The lines that land are about a debt you already owe yourself, not an opportunity you might be missing. An opportunity is optional. A debt is not. 'Your future self is cashing your discipline checks' converts; 'a missed investment costs $500,000' does not, because the first is a bill arriving and the second is a maybe.",
+
+  "enemy": "Measurement culture. Budgeting apps, net-worth dashboards, tracking every dollar, optimising your coffee spend, the passive-income grift. Not effort — effort is fine, effort is the point. What we are against is the belief that a life is a spreadsheet to be tuned.",
+
+  "register_test": [
+    "Does it name a BEHAVIOUR or a NUMBER? Behaviour wins.",
+    "Could a carpenter say it, or does it need a brokerage account? Carpenter wins.",
+    "Is the enemy INSIDE the person, or out in the market? Inside wins."
+  ],
+
+  "forbidden_vocabulary": [
+    "panic sell", "weak hands", "diamond hands", "hodl", "portfolio", "the dip",
+    "market timing", "bag holder", "crypto", "stocks", "ticker", "passive income",
+    "side hustle", "grind", "rise and grind", "levels", "unlock", "game changer",
+    "millionaire mindset", "financial freedom"
+  ],
+
+  "good": [
+    {
+      "line": "Your future self is cashing your discipline checks. Pay them today.",
+      "why": "PROVEN — best converter on the channel. A debt arriving, borrowed from ordinary life, and the person who collects is you."
+    },
+    {
+      "line": "No spreadsheet ever made a man braver.",
+      "why": "Names the enemy without arguing with it. A carpenter could say this out loud."
+    },
+    {
+      "line": "The man you will be at sixty is watching you decide tonight. He remembers everything.",
+      "why": "Future self as witness rather than beneficiary. Obligation, not upside."
+    },
+    {
+      "line": "Comfort is borrowed. The interest comes due in your forties.",
+      "why": "Debt framing carried by metaphor, not arithmetic. No figures, and it still costs something."
+    },
+    {
+      "line": "You already know what the work is. Pretending otherwise is the only real lie.",
+      "why": "The enemy is entirely inside the listener. Nothing to look up, nothing to calculate."
+    }
+  ],
+
+  "bad": [
+    {
+      "line": "A latte costs $5. A missed investment costs $500,000.",
+      "why": "Arithmetic. Describes an opportunity, not a debt, and you need a spreadsheet before you can feel it."
+    },
+    {
+      "line": "Rich minds don't panic sell. Fear is the tax on weak hands.",
+      "why": "Trading-desk vocabulary. Speaks to somebody holding a portfolio rather than to a person."
+    },
+    {
+      "line": "Your comfort zone is stealing your wealth.",
+      "why": "True and completely worn out. A hundred accounts have already posted this sentence."
+    },
+    {
+      "line": "$10 a day becomes $1.4 million.",
+      "why": "Pure arithmetic. There is no human being anywhere in it."
+    }
+  ]
+}

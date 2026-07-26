@@ -2,9 +2,16 @@ import hashlib
 import html
 import json
 import random
+import re
 import requests
 from pathlib import Path
-from src.config import CONTENT_THEMES, DATA_DIR, HOOK_STYLES
+from src.config import (
+    CANDIDATES_PER_POST,
+    CONTENT_THEMES,
+    DATA_DIR,
+    HOOK_STYLES,
+    JUDGE_MODEL,
+)
 from src.llm import generate
 from src.database import content_exists, save_content_hash, get_theme_scores
 
@@ -14,7 +21,11 @@ THEME_LABELS = {
     "discipline": "discipline and consistency",
     "investing": "investing and smart money moves",
     "entrepreneurship": "entrepreneurship and building businesses",
-    "financial_freedom": "financial freedom and independence",
+    # Label deliberately avoids the phrase "financial freedom" — the canon bans it
+    # as dead from overuse, and asking for a theme in words the model may not use
+    # is a contradiction that costs generations. The KEY is unchanged so the
+    # theme's scoring history survives.
+    "financial_freedom": "owning your own time and answering to nobody",
     "productivity": "productivity and peak performance",
     "leadership": "leadership and influence",
     "stoicism": "stoic philosophy and emotional control",
@@ -156,6 +167,95 @@ def get_weighted_theme() -> str:
     return _weighted_pick(CONTENT_THEMES, scores)
 
 
+CANON_PATH = DATA_DIR / "voice_canon.json"
+
+
+def _load_canon() -> dict:
+    """The account's voice, as exemplars. Empty dict if missing — the form rules
+    still apply, we just lose the aesthetic guidance rather than the whole post."""
+    try:
+        return json.loads(CANON_PATH.read_text())
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"    (canon unreadable: {type(e).__name__} — falling back to form rules only)")
+        return {}
+
+
+def _parse_candidates(raw: str) -> list[str]:
+    """Pull numbered lines out of the model's reply.
+
+    Tolerant on purpose: numbering style drifts between models and a strict
+    parser would throw away a whole usable batch over a stray bullet.
+    """
+    out = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Strip a leading "1.", "1)", "-", "*" if present
+        line = re.sub(r"^\s*(?:\d+\s*[.)\-:]|[-*•])\s*", "", line).strip()
+        line = line.strip('"').strip("'").strip()
+        # A candidate is two sentences in the target length band
+        if 40 <= len(line) <= 200 and line.count(".") >= 2:
+            out.append(line)
+    return out
+
+
+def _judge_candidates(candidates: list[str], canon: dict) -> tuple[str, int, str]:
+    """Score candidates against the canon and return the best.
+
+    Separate cheap model on purpose: this is scoring against explicit criteria,
+    not writing, so it wants consistency rather than brilliance. On any failure
+    it falls back to the first candidate — a judge outage should cost us the
+    choice, never the post.
+    """
+    if len(candidates) == 1:
+        return candidates[0], 5, "only one survivor, no choice to make"
+
+    numbered = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
+    tests = "\n".join(f"  - {t}" for t in canon.get("register_test", []))
+    prompt = f"""Pick the strongest line for a channel that argues character beats calculation.
+
+THE PRINCIPLE
+{canon.get("principle", "")}
+
+JUDGE AGAINST THIS
+{tests}
+  - Would a person stop scrolling for it, or is it merely agreeable?
+  - Has it been said a thousand times already? Familiar phrasing loses.
+
+CANDIDATES
+{numbered}
+
+Reply in exactly this format and nothing else:
+PICK: <number>
+SCORE: <0-10 for the line you picked>
+REASON: <one short clause>"""
+
+    try:
+        from src.llm import generate_with_model
+
+        reply = generate_with_model(JUDGE_MODEL, prompt, max_tokens=120)
+    except Exception as e:
+        print(f"    (judge failed: {type(e).__name__} — taking first candidate)")
+        return candidates[0], 5, "judge unavailable"
+
+    pick, score, reason = 1, 5, "unparsed"
+    for line in reply.splitlines():
+        line = line.strip()
+        up = line.upper()
+        if up.startswith("PICK:"):
+            d = "".join(ch for ch in line.split(":", 1)[1] if ch.isdigit())
+            if d:
+                pick = max(1, min(len(candidates), int(d[:2])))
+        elif up.startswith("SCORE:"):
+            d = "".join(ch for ch in line.split(":", 1)[1] if ch.isdigit())
+            if d:
+                score = max(0, min(10, int(d[:2])))
+        elif up.startswith("REASON:"):
+            reason = line.split(":", 1)[1].strip()[:100]
+    return candidates[pick - 1], score, reason
+
+
 def get_weighted_hook() -> str:
     """Pick a hook archetype key, weighted by learned performance.
 
@@ -189,45 +289,83 @@ def generate_original_content(theme: str, inspiration: dict | None = None) -> di
 
     theme_desc = THEME_LABELS.get(theme, theme)
 
-    # Load posted titles for anti-repetition
+    # Load posted titles for anti-repetition — used by the CODE guard only.
+    #
+    # The old prompt pasted 40 previous titles in as a "do not repeat" block.
+    # That was 637 tokens of the register we are replacing, shipped on every
+    # call: telling a model not to repeat something still teaches it that this is
+    # the kind of thing written here, and it was the largest block of aesthetic
+    # instruction in the prompt. Dedup and voice are different jobs — dedup lives
+    # in _is_too_similar() against all history, voice lives in the canon below.
     posted_titles = _load_posted_titles()
-
-    # Show LLM a sample of recent titles to avoid
-    avoid_sample = posted_titles[-40:] if len(posted_titles) > 40 else posted_titles
-    avoid_block = ""
-    if avoid_sample:
-        titles_str = "\n".join(f"  - {t}" for t in avoid_sample)
-        avoid_block = f"""
-PREVIOUSLY POSTED (do NOT repeat these concepts, phrases, or structures):
-{titles_str}
-
-Your quote MUST be completely different from ALL of the above. Different concept, different angle, different words. If you catch yourself writing something similar, start over."""
 
     # Pick a hook archetype, weighted by learned conversion performance
     hook_style = get_weighted_hook()
     chosen_hook = HOOK_STYLES[hook_style]
 
-    prompt = f"""Generate a single powerful, original quote about {theme_desc} for a finance/motivation brand called "MASTERING MONEY".
+    canon = _load_canon()
+    good = "\n".join(f'  "{e["line"]}"\n     -> {e["why"]}' for e in canon.get("good", []))
+    bad = "\n".join(f'  "{e["line"]}"\n     -> {e["why"]}' for e in canon.get("bad", []))
+    tests = "\n".join(f"  {i + 1}. {t}" for i, t in enumerate(canon.get("register_test", [])))
+    banned = ", ".join(canon.get("forbidden_vocabulary", []))
+
+    prompt = f"""Write {CANDIDATES_PER_POST} candidate lines about {theme_desc} for a channel that argues character beats calculation.
 {inspiration_text}
-{avoid_block}
 
-HOOK STYLE FOR THIS QUOTE: Use {chosen_hook}
+THE PRINCIPLE
+{canon.get("principle", "")}
 
-Rules:
+WHAT WE ARE AGAINST
+{canon.get("enemy", "")}
+
+LINES THAT WORK, AND WHY
+{good}
+
+LINES THAT FAIL, AND WHY
+{bad}
+
+TEST EVERY LINE AGAINST THIS
+{tests}
+
+HOOK STYLE FOR THIS BATCH: {chosen_hook}
+
+FORM
 - EXACTLY 2 sentences. Both end with a period.
-- THE FIRST SENTENCE IS THE HOOK. It must stop someone mid-scroll in under 8 words.
-- The second sentence delivers a SPECIFIC payoff — a concrete insight, consequence, or hard truth. No vague advice.
-- TOTAL LENGTH: 60-120 characters. Shorter is better. Every word must earn its place.
-- Masculine, direct, zero-fluff tone.
-- NO emdashes (—), NO endashes (–), NO dashes connecting clauses
-- NO colons or semicolons. Use periods instead.
-- NO attribution. This is original content.
-- NO hashtags, NO emojis, NO quotation marks
-- Do NOT give specific financial advice or mention specific stocks/crypto
+- The FIRST sentence is the hook: it stops a thumb in under 8 words.
+- The SECOND lands a specific consequence. Never vague advice.
+- 60-120 characters total. Shorter is stronger.
+- No emdashes, endashes, colons or semicolons. Periods only.
+- No hashtags, no emojis, no quotation marks, no attribution.
+- Never name a specific stock, coin or product.
+- Never use these words: {banned}
 
-Return ONLY the quote text, nothing else."""
+The {CANDIDATES_PER_POST} candidates must differ in STRUCTURE, not just wording. If two of
+them could be rewrites of each other, replace one. Reach for the strange, exact
+image over the safe, familiar phrasing — a line nobody has written yet beats a
+line that is merely correct.
 
-    text = generate(prompt, max_tokens=100)
+Return exactly {CANDIDATES_PER_POST} lines, one per line, numbered 1. to {CANDIDATES_PER_POST}. Nothing else."""
+
+    raw = generate(prompt, max_tokens=100 + 60 * CANDIDATES_PER_POST)
+    candidates = _parse_candidates(raw)
+    if not candidates:
+        print("    (no parseable candidates)")
+        return None
+
+    # Dedup in code against all history, then let the judge choose among survivors
+    survivors = []
+    for c in candidates:
+        h = hashlib.sha256(c.lower().encode()).hexdigest()
+        if content_exists(h) or _is_too_similar(c, posted_titles):
+            continue
+        survivors.append(c)
+
+    print(f"    {len(candidates)} candidates, {len(survivors)} survived dedup")
+    if not survivors:
+        return None
+
+    text, judge_score, judge_reason = _judge_candidates(survivors, canon)
+    print(f'    picked {judge_score}/10 — {judge_reason}')
     text = text.strip().strip('"').strip("'")
     # Enforce: replace any emdashes/endashes the LLM sneaks in
     text = text.replace("—", ".").replace("–", ".").replace(" . ", ". ")
@@ -249,7 +387,10 @@ Return ONLY the quote text, nothing else."""
 
     save_content_hash(content_hash)
     # hook_style rides along so the poster can record it against the video_id
-    return {"text": text, "theme": theme, "hook_style": hook_style, "source": "original"}
+    return {
+        "text": text, "theme": theme, "hook_style": hook_style,
+        "source": "original", "judge_score": judge_score,
+    }
 
 
 def generate_content(post_type: str = "feed") -> dict | None:

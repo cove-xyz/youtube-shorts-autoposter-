@@ -19,8 +19,12 @@ from src.config import OPENROUTER_API_KEY, LLM_MODEL
 # Tried in order when the primary model is rate-limited or a provider errors.
 # Upstream DeepSeek capacity is the usual culprit, so the first fallback is a
 # different vendor rather than another DeepSeek route.
+# Fallbacks are deliberately different VENDORS, not different routes to the same
+# one. The Jul 18 post was lost because every upstream provider for a single
+# DeepSeek model was rate-limited at once — a same-vendor fallback would not have
+# helped. Kimi is Moonshot, Haiku is Anthropic.
 FALLBACK_MODELS = [
-    "google/gemini-2.0-flash-001",
+    "moonshotai/kimi-k3",
     "anthropic/claude-haiku-4.5",
 ]
 
@@ -57,6 +61,18 @@ def _try_model(client: OpenAI, model: str, prompt: str, max_tokens: int) -> str 
             if attempt < MAX_ATTEMPTS_PER_MODEL - 1:
                 time.sleep(wait)
     return None
+
+
+def generate_with_model(model: str, prompt: str, max_tokens: int = 300) -> str:
+    """Call one specific model, no fallback chain.
+
+    Used by the judge, which must run on a known cheap model rather than
+    inheriting whatever the writer is set to.
+    """
+    result = _try_model(_get_client(), model, prompt, max_tokens)
+    if result is None:
+        raise RuntimeError(f"{model} failed after {MAX_ATTEMPTS_PER_MODEL} attempts")
+    return result
 
 
 def generate(prompt: str, max_tokens: int = 300) -> str:

@@ -8,6 +8,7 @@ from src.config import (
     YOUTUBE_VIDEO_DURATION,
     IMAGE_ENGINE_ENABLED,
     IMAGE_BACKGROUND_RATIO,
+    LLM_MODEL,
 )
 from src.content_generator import generate_content, _save_posted_title
 from src.image_engine import generate_background
@@ -161,6 +162,11 @@ def create_and_post_short() -> dict | None:
         # Recorded so we can later check whether the gate's score predicts
         # anything — a gate that does not correlate with performance is theatre.
         vision_score=background.get("vision_score") if background else None,
+        # Which model wrote the line, and what the judge thought of it. Lets us
+        # test writer models against each other, and check whether the judge
+        # score predicts anything — same discipline as the vision gate.
+        text_model=LLM_MODEL,
+        judge_score=content.get("judge_score"),
     )
 
     # Clean up video file (images are cheap, videos are large)

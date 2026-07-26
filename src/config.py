@@ -15,9 +15,31 @@ IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
-# LLM (via OpenRouter — supports DeepSeek, Claude, Gemini, etc.)
+# LLM (via OpenRouter — supports DeepSeek, Claude, Gemini, Kimi, etc.)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+
+# The writer. Deliberately NOT a frontier model, against expectation.
+#
+# Tested head to head on identical canon prompts: DeepSeek averaged 58 characters,
+# Opus 5 averaged 94, Sonnet 5 averaged 115 and broke the two-sentence rule. The
+# task is extreme compression, and the frontier is tuned toward elaboration —
+# thoroughness is a liability inside 60 characters, so DeepSeek's bluntness is an
+# asset rather than a saving. The prompt was the bottleneck all along, not the
+# model: the same DeepSeek that wrote "Your comfort zone is stealing your wealth"
+# writes "Laziness is a loan shark. The vig is paid in regret." given the canon.
+# Sample was small (n=2-3 per model) — text_model is in the variant log so this
+# gets settled by subs-per-1k rather than by taste.
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek/deepseek-chat-v3-0324")
+
+# The judge. Scores candidates against explicit criteria — wants consistency, not
+# brilliance, so it runs cheap and separate from the writer.
+JUDGE_MODEL = os.getenv("JUDGE_MODEL", "anthropic/claude-haiku-4.5")
+
+# Candidates generated per post. Best-of-N is the direct attack on cliche: an LLM
+# given an underspecified creative brief returns the most probable phrasing, and
+# for aphorisms the most probable phrasing IS the cliche. The best of six beats
+# the mean of one by a wide margin, for roughly the same money.
+CANDIDATES_PER_POST = int(os.getenv("CANDIDATES_PER_POST", "6"))
 
 # Legacy / Instagram API keys
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
