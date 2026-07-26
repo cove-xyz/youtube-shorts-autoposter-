@@ -60,8 +60,14 @@ jobs:
           IMAGE_ENGINE_ENABLED: ${{ vars.IMAGE_ENGINE_ENABLED || 'true' }}
           IMAGE_MODEL: ${{ vars.IMAGE_MODEL || 'bytedance-seed/seedream-4.5' }}
           IMAGE_BACKGROUND_RATIO: ${{ vars.IMAGE_BACKGROUND_RATIO || '0.5' }}
-          IMAGE_CANDIDATES: ${{ vars.IMAGE_CANDIDATES || '2' }}
-          VISION_MODEL: ${{ vars.VISION_MODEL || 'google/gemini-3.1-flash' }}
+          # Seedream does not support n>1 on OpenRouter — asking for 2 returns 1,
+          # so best-of-N would need sequential calls. Keep at 1 until that is worth
+          # the extra spend; the gate can currently accept or reject, not choose.
+          IMAGE_CANDIDATES: ${{ vars.IMAGE_CANDIDATES || '1' }}
+          # -lite suffix matters: plain `google/gemini-3.1-flash` is not a valid
+          # OpenRouter slug and 400s, which the gate treats as fail-open — a dead
+          # gate that reports nothing. Verified against their live model list.
+          VISION_MODEL: ${{ vars.VISION_MODEL || 'google/gemini-3.1-flash-lite' }}
         run: python run_youtube.py post
 
       - name: Commit updated title history
