@@ -113,7 +113,7 @@ def fetch_video_stats(days: int = 30) -> list[dict]:
             ids=f"channel=={channel_id}",
             startDate=start_date,
             endDate=end_date,
-            metrics="views,estimatedMinutesWatched,averageViewPercentage,likes",
+            metrics="views,estimatedMinutesWatched,averageViewPercentage,likes,subscribersGained",
             dimensions="video",
             sort="-views",
             maxResults=200,
@@ -142,6 +142,7 @@ def fetch_video_stats(days: int = 30) -> list[dict]:
             "watch_time_minutes": float(row[2]),
             "avg_view_pct": float(row[3]),
             "likes": int(row[4]),
+            "subscribers_gained": int(row[5]),
             "title": meta.get("title", ""),
             "theme": theme,
         })
@@ -167,11 +168,26 @@ def sync_to_db(stats: list[dict]):
     return updated
 
 
+# Scoring weights. Subscriber conversion leads because it is the actual goal —
+# the previous 70/30 views/watch-time split optimized for reach the channel was
+# already getting, which is how views recovered while subs stayed flat. Views
+# stay in the mix so a theme that converts well but cannot get distribution
+# does not crowd out everything else.
+W_SUBS = 0.60    # subscribers gained per 1k views
+W_VIEWS = 0.25   # avg views per video
+W_WATCH = 0.15   # avg watch-through %
+
+# Smoothing prior, in thousands of views. A theme with 200 views and 1 sub would
+# otherwise read as 5.0 subs/1k and dominate the weighting on noise alone. This
+# pulls thin themes toward the channel-wide rate until they earn real volume.
+SUBS_PRIOR_KVIEWS = 2.0
+
+
 def compute_theme_scores(stats: list[dict]) -> dict[str, dict]:
     """Compute theme scores directly from YouTube stats (not the DB).
 
-    Uses a composite signal: 70% avg views + 30% avg watch-through %.
-    Returns dict of theme -> {score, count, avg_views, avg_watch_pct}.
+    Composite signal: 60% subscriber conversion + 25% avg views + 15% watch-through.
+    Returns dict of theme -> {score, count, avg_views, avg_watch_pct, subs_per_1k}.
     """
     # Group stats by theme
     by_theme: dict[str, list[dict]] = {}
@@ -183,25 +199,45 @@ def compute_theme_scores(stats: list[dict]) -> dict[str, dict]:
     if not by_theme:
         return {}
 
-    # Compute per-theme averages
+    # Channel-wide conversion rate, used as the smoothing prior
+    total_views = sum(s["views"] for s in stats) or 1
+    total_subs = sum(s.get("subscribers_gained", 0) for s in stats)
+    channel_subs_per_1k = (total_subs / total_views) * 1000
+
+    # Compute per-theme aggregates
     theme_data = {}
     for theme, videos in by_theme.items():
         avg_views = sum(v["views"] for v in videos) / len(videos)
         avg_watch_pct = sum(v["avg_view_pct"] for v in videos) / len(videos)
+        theme_views = sum(v["views"] for v in videos)
+        theme_subs = sum(v.get("subscribers_gained", 0) for v in videos)
+
+        # Smoothed subs per 1k views, shrunk toward the channel rate
+        kviews = theme_views / 1000
+        subs_per_1k = (
+            (theme_subs + SUBS_PRIOR_KVIEWS * channel_subs_per_1k)
+            / (kviews + SUBS_PRIOR_KVIEWS)
+        )
+
         theme_data[theme] = {
             "count": len(videos),
             "avg_views": avg_views,
             "avg_watch_pct": avg_watch_pct,
+            "total_views": theme_views,
+            "total_subs": theme_subs,
+            "subs_per_1k": subs_per_1k,
         }
 
     # Normalize to 0.5–2.0 range using composite signal
     max_views = max(d["avg_views"] for d in theme_data.values()) or 1
     max_watch = max(d["avg_watch_pct"] for d in theme_data.values()) or 1
+    max_subs = max(d["subs_per_1k"] for d in theme_data.values()) or 1
 
     for theme, d in theme_data.items():
-        view_norm = d["avg_views"] / max_views       # 0–1
+        subs_norm = d["subs_per_1k"] / max_subs       # 0–1
+        view_norm = d["avg_views"] / max_views        # 0–1
         watch_norm = d["avg_watch_pct"] / max_watch   # 0–1
-        composite = (0.7 * view_norm) + (0.3 * watch_norm)
+        composite = (W_SUBS * subs_norm) + (W_VIEWS * view_norm) + (W_WATCH * watch_norm)
         score = round(0.5 + (composite * 1.5), 3)    # 0.5–2.0
         d["score"] = score
         update_theme_score(theme, score, d["count"], round(d["avg_views"], 1))
@@ -210,7 +246,10 @@ def compute_theme_scores(stats: list[dict]) -> dict[str, dict]:
     for theme in CONTENT_THEMES:
         if theme not in theme_data:
             update_theme_score(theme, 1.0, 0, 0.0)
-            theme_data[theme] = {"count": 0, "avg_views": 0, "avg_watch_pct": 0, "score": 1.0}
+            theme_data[theme] = {
+                "count": 0, "avg_views": 0, "avg_watch_pct": 0,
+                "total_views": 0, "total_subs": 0, "subs_per_1k": 0.0, "score": 1.0,
+            }
 
     return theme_data
 
@@ -232,22 +271,36 @@ def print_report(stats: list[dict], theme_data: dict[str, dict]):
     if unthemed:
         print(f"  ({len(unthemed)} videos couldn't be matched to a theme)")
 
-    print(f"\n{'Views':>7}  {'Watch%':>6}  {'Likes':>5}  {'Theme':<20}  {'Title'}")
-    print("-" * 90)
+    print(f"\n{'Views':>7}  {'Watch%':>6}  {'Likes':>5}  {'Subs':>4}  {'Theme':<20}  {'Title'}")
+    print("-" * 96)
     for s in stats[:20]:
         title = s["title"][:40] + "..." if len(s["title"]) > 40 else s["title"]
         theme = s.get("theme") or "?"
-        print(f"{s['views']:>7}  {s['avg_view_pct']:>5.1f}%  {s['likes']:>5}  {theme:<20}  {title}")
+        print(
+            f"{s['views']:>7}  {s['avg_view_pct']:>5.1f}%  {s['likes']:>5}  "
+            f"{s.get('subscribers_gained', 0):>4}  {theme:<20}  {title}"
+        )
+
+    total_views = sum(s["views"] for s in stats) or 1
+    total_subs = sum(s.get("subscribers_gained", 0) for s in stats)
+    print(f"\n  Channel conversion: {total_subs} subs / {total_views} views "
+          f"= {(total_subs / total_views) * 1000:.2f} per 1k views")
 
     print(f"\n=== THEME SCORES (learning loop) ===")
-    print(f"{'Score':>6}  {'Videos':>6}  {'Avg Views':>9}  {'Avg Watch%':>10}  {'Theme'}")
-    print("-" * 60)
+    print(f"{'Score':>6}  {'Videos':>6}  {'Avg Views':>9}  {'Watch%':>7}  {'Subs':>5}  {'Subs/1k':>8}  {'Theme'}")
+    print("-" * 78)
     sorted_themes = sorted(theme_data.items(), key=lambda x: x[1]["score"], reverse=True)
     for theme, d in sorted_themes:
-        print(f"{d['score']:>6.2f}  {d['count']:>6}  {d['avg_views']:>9.0f}  {d['avg_watch_pct']:>9.1f}%  {theme}")
+        print(
+            f"{d['score']:>6.2f}  {d['count']:>6}  {d['avg_views']:>9.0f}  "
+            f"{d['avg_watch_pct']:>6.1f}%  {d.get('total_subs', 0):>5}  "
+            f"{d.get('subs_per_1k', 0):>8.2f}  {theme}"
+        )
 
     print("\n(Score 0.5–2.0 | higher = content generator picks this theme more often)")
-    print("(Signal: 70% avg views + 30% avg watch-through %)")
+    print(f"(Signal: {int(W_SUBS * 100)}% subs-per-1k-views + {int(W_VIEWS * 100)}% avg views "
+          f"+ {int(W_WATCH * 100)}% watch-through)")
+    print(f"(Subs/1k is smoothed toward the channel rate with a {SUBS_PRIOR_KVIEWS}k-view prior)")
 
 
 def run_analytics_sync(days: int = 30):

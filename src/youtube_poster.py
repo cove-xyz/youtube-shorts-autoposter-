@@ -118,7 +118,10 @@ def create_and_post_short() -> dict | None:
         status="posted",
     )
     mark_posted(post_id, result["id"])
-    _save_posted_title(title)
+    # Record the full quote, not the truncated display title. `title` is cut at
+    # 65 chars, which drops the payoff sentence and leaves the dedup check
+    # comparing hooks only.
+    _save_posted_title(quote)
 
     # Clean up video file (images are cheap, videos are large)
     try:

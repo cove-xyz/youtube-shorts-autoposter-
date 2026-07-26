@@ -2,9 +2,16 @@ name: Post YouTube Short
 
 on:
   schedule:
-    # 2x/day — quality over quantity, let each video breathe
-    - cron: "0 15 * * *"   # 11:00 AM ET — midday peak engagement
-    - cron: "0 23 * * *"   #  7:00 PM ET — evening prime time
+    # 5x/day across peak engagement windows (times are ET / UTC-4 EDT).
+    # Restored from 2x/day on 2026-07-26: the May 14 cut to 2x was paired with a
+    # dedup fix that never actually worked (title history was being clobbered by
+    # concurrent jobs), so it bought a 60% output cut for no quality gain.
+    # Uploads cost 1600 quota units each; 5/day = 8000 of the 10000 daily limit.
+    - cron: "0 12 * * *"   #  8:00 AM ET — morning commute
+    - cron: "0 15 * * *"   # 11:00 AM ET — midday scroll
+    - cron: "0 18 * * *"   #  2:00 PM ET — afternoon break
+    - cron: "0 22 * * *"   #  6:00 PM ET — evening wind-down
+    - cron: "0 1 * * *"    #  9:00 PM ET — late night scroll
   workflow_dispatch:        # Manual trigger from GitHub UI
 
 permissions:
@@ -53,5 +60,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/posted_titles.json
-          git diff --cached --quiet || git commit -m "Auto-update posted titles after upload"
-          git push
+          git diff --cached --quiet && exit 0
+          git commit -m "Auto-update posted titles after upload"
+          # Rebase onto any commit the analytics job or the other daily slot
+          # pushed while this run was working. Without this, the push either
+          # fails or lands on a stale base and silently drops their titles —
+          # which is how the anti-repetition memory kept losing entries.
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash origin main && git push && exit 0
+            echo "push attempt $i failed, retrying..."
+            sleep $((i * 5))
+          done
+          echo "::error::Could not push title history after 5 attempts"
+          exit 1
