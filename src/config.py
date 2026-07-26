@@ -73,7 +73,14 @@ YOUTUBE_TOKEN_PATH = DATA_DIR / "youtube_token.json"
 YOUTUBE_VIDEO_DURATION = int(os.getenv("YOUTUBE_VIDEO_DURATION", "10"))
 YOUTUBE_CATEGORY_ID = os.getenv("YOUTUBE_CATEGORY_ID", "22")  # People & Blogs
 
-# ElevenLabs TTS (set ELEVENLABS_ENABLED=true in .env to turn on)
+# ElevenLabs TTS — OFF as a decision, not a default.
+#
+# The image engine spends real effort on provenance: available light, film grain,
+# gaze away from the lens, off-centre crops, all so a frame reads as found rather
+# than generated. A synthetic voice announces "machine-made" in the first half
+# second and cancels that work — the two pull against each other. Silence is the
+# authentic option here, so video length stays at ~10s rather than being padded
+# out to fit narration. Do not enable without revisiting that trade.
 ELEVENLABS_ENABLED = os.getenv("ELEVENLABS_ENABLED", "false").lower() == "true"
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")  # Adam

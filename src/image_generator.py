@@ -1,20 +1,19 @@
 import time
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
-from src.config import IMAGES_DIR, YOUTUBE_CHANNEL_NAME
+from src.config import BASE_DIR, BRAND_FONT, IMAGES_DIR, YOUTUBE_CHANNEL_NAME, YOUTUBE_HANDLE
 
 # Font priority: heavy/bold condensed > bold sans > fallback
 # We want fonts that look aggressive and powerful in ALL CAPS
+_BUNDLED_FONT = BASE_DIR / "assets" / "fonts" / BRAND_FONT
+
+# Bundled first on every platform. Previously this list started with macOS system
+# fonts, so thumbnails rendered in Futura locally and a generic Helvetica clone in
+# CI — and in a different face to the video frames either way.
 FONT_CANDIDATES_BOLD = [
-    # macOS — strong, heavy fonts first
-    ("/System/Library/Fonts/Supplemental/Futura.ttc", 4),   # Futura Condensed ExtraBold
-    ("/System/Library/Fonts/Supplemental/Impact.ttf", 0),
-    ("/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf", 0),
-    ("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 0),
-    ("/System/Library/Fonts/Supplemental/Futura.ttc", 2),   # Futura Bold
-    # Linux (Perplexity Computer / Docker)
-    ("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 0),
-    ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 0),
+    (str(_BUNDLED_FONT), 0),
+    ("/System/Library/Fonts/Supplemental/Georgia Bold.ttf", 0),
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", 0),
 ]
 
 FONT_CANDIDATES_LIGHT = [
@@ -70,7 +69,7 @@ def generate_feed_image(text: str, filename: str | None = None) -> Path:
     img = Image.new("RGB", (width, height), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    display_text = text.upper()
+    display_text = text
 
     padding = 100
     max_text_width = width - (padding * 2)
@@ -94,7 +93,7 @@ def generate_feed_image(text: str, filename: str | None = None) -> Path:
         draw.text((x, y), line, fill=(255, 255, 255), font=font)
 
     brand_font = _find_font(18, FONT_CANDIDATES_LIGHT)
-    brand_text = "MASTERING MONEY"
+    brand_text = YOUTUBE_CHANNEL_NAME
     brand_bbox = brand_font.getbbox(brand_text)
     brand_width = brand_bbox[2] - brand_bbox[0]
     draw.text(
@@ -118,7 +117,7 @@ def generate_story_image(text: str, filename: str | None = None) -> Path:
     img = Image.new("RGB", (width, height), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    display_text = text.upper()
+    display_text = text
 
     padding = 80
     max_text_width = width - (padding * 2)
@@ -141,7 +140,7 @@ def generate_story_image(text: str, filename: str | None = None) -> Path:
         draw.text((x, y), line, fill=(255, 255, 255), font=font)
 
     brand_font = _find_font(16, FONT_CANDIDATES_LIGHT)
-    brand_text = "MASTERING MONEY"
+    brand_text = YOUTUBE_CHANNEL_NAME
     brand_bbox = brand_font.getbbox(brand_text)
     brand_width = brand_bbox[2] - brand_bbox[0]
     draw.text(
@@ -197,7 +196,7 @@ def generate_youtube_image(text: str, filename: str | None = None) -> Path:
 
     # --- Handle centered, above mobile player controls ---
     brand_font = _find_font(32, FONT_CANDIDATES_LIGHT)
-    brand_text = "@MASTERINGMONEYXYZ"
+    brand_text = YOUTUBE_HANDLE.upper()
     brand_bbox = brand_font.getbbox(brand_text)
     brand_width = brand_bbox[2] - brand_bbox[0]
     draw.text(

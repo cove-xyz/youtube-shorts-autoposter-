@@ -16,12 +16,17 @@ HASHTAG_POOLS = {
     "self_improvement": ["#selfimprovement", "#levelup", "#bettereveryday", "#personalgrowth", "#evolve"],
 }
 
-UNIVERSAL_HASHTAGS = ["#masteringmoney", "#motivation", "#success"]
+# Brand hashtag derives from the channel name so a rename applies everywhere
+UNIVERSAL_HASHTAGS = [
+    "#" + YOUTUBE_CHANNEL_NAME.lower().replace(" ", ""),
+    "#motivation",
+    "#success",
+]
 
 
 def generate_caption(quote_text: str, theme: str) -> str:
     """Generate an Instagram caption for a quote."""
-    prompt = f"""Write an Instagram caption for this quote posted by a finance/motivation account called "MASTERING MONEY":
+    prompt = f"""Write an Instagram caption for this quote posted by an account called "{YOUTUBE_CHANNEL_NAME}":
 
 Quote: "{quote_text}"
 Theme: {theme}

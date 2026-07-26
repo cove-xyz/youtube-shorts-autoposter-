@@ -2,7 +2,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from src.config import (
+from src.config import YOUTUBE_CHANNEL_NAME, (
     CONTENT_THEMES,
     SMTP_HOST,
     SMTP_PORT,
@@ -109,7 +109,7 @@ def generate_weekly_report() -> str:
     sorted_themes = sorted(scores.items(), key=lambda x: x[1], reverse=True)
 
     report = f"""
-MASTERING MONEY - Weekly Report
+{YOUTUBE_CHANNEL_NAME} - Weekly Report
 {datetime.now().strftime('%B %d, %Y')}
 {'=' * 50}
 
@@ -152,7 +152,7 @@ def send_weekly_email():
     msg = MIMEMultipart()
     msg["From"] = SMTP_USER
     msg["To"] = NOTIFY_EMAIL
-    msg["Subject"] = f"MASTERING MONEY Weekly Report - {datetime.now().strftime('%B %d')}"
+    msg["Subject"] = f"{YOUTUBE_CHANNEL_NAME} Weekly Report - {datetime.now().strftime('%B %d')}"
     msg.attach(MIMEText(report, "plain"))
 
     try:
