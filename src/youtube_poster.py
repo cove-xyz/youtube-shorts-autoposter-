@@ -1,8 +1,16 @@
 import os
+import random
 from pathlib import Path
 
-from src.config import YOUTUBE_CHANNEL_NAME, ELEVENLABS_ENABLED, YOUTUBE_VIDEO_DURATION
+from src.config import (
+    YOUTUBE_CHANNEL_NAME,
+    ELEVENLABS_ENABLED,
+    YOUTUBE_VIDEO_DURATION,
+    IMAGE_ENGINE_ENABLED,
+    IMAGE_BACKGROUND_RATIO,
+)
 from src.content_generator import generate_content, _save_posted_title
+from src.image_engine import generate_background
 from src.variants import record_variant
 from src.caption_generator import generate_youtube_description, generate_youtube_tags
 from src.image_generator import generate_youtube_image
@@ -67,13 +75,23 @@ def create_and_post_short() -> dict | None:
     image_path = generate_youtube_image(quote)
     print(f"  Image: {image_path}")
 
+    # 3b. Generated photographic background, on a coin flip.
+    # Split rather than switched: the plain cards are the control arm, so
+    # subs-per-1k decides whether photography actually converts better instead
+    # of us assuming it does. Both arms are recorded in the variant log.
+    background = None
+    if IMAGE_ENGINE_ENABLED and random.random() < IMAGE_BACKGROUND_RATIO:
+        print("  Generating photographic background...")
+        background = generate_background(quote, theme)
+    background_path = background["path"] if background else None
+
     # 4. Generate voiceover
     print("[4/7] Generating voiceover...")
     voice_path = _generate_voice(quote)
 
     # 5. Create video (text reveal + voice + music)
     print("[5/7] Creating video...")
-    video_path = create_video(quote, voice_path=voice_path)
+    video_path = create_video(quote, voice_path=voice_path, background_path=background_path)
 
     # 6. Generate title + description + tags
     print("[6/7] Generating metadata...")
@@ -135,6 +153,14 @@ def create_and_post_short() -> dict | None:
         voice=ELEVENLABS_ENABLED,
         source=content.get("source"),
         quote=quote,
+        # `background` is the arm of the split this post landed in — "generated"
+        # vs "plain" is the comparison the loop will score.
+        background="generated" if background else "plain",
+        image_model=background["model"] if background else None,
+        image_subject=background["subject"] if background else None,
+        # Recorded so we can later check whether the gate's score predicts
+        # anything — a gate that does not correlate with performance is theatre.
+        vision_score=background.get("vision_score") if background else None,
     )
 
     # Clean up video file (images are cheap, videos are large)
@@ -179,11 +205,19 @@ def preview_short() -> dict | None:
     image_path = generate_youtube_image(quote)
     print(f"  Image: {image_path}")
 
+    # Preview always attempts a background when the engine is on, ignoring the
+    # split ratio — the point of a preview is to look at the thing being tested.
+    background = None
+    if IMAGE_ENGINE_ENABLED:
+        print("  Generating photographic background...")
+        background = generate_background(quote, theme)
+    background_path = background["path"] if background else None
+
     print("[4/6] Generating voiceover...")
     voice_path = _generate_voice(quote)
 
     print("[5/6] Creating video...")
-    video_path = create_video(quote, voice_path=voice_path)
+    video_path = create_video(quote, voice_path=voice_path, background_path=background_path)
 
     print("[6/6] Generating metadata...")
     title = _make_title(quote)

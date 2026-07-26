@@ -77,6 +77,38 @@ CONTENT_THEMES = [
     "self_improvement",
 ]
 
+# Image engine — generated photographic backgrounds behind the quote.
+#
+# Off by default: every enabled post publishes a generated image to a real
+# channel with no human in the loop, so this stays opt-in until the model slug
+# and the house style have been eyeballed via `run_youtube.py verify-image`.
+IMAGE_ENGINE_ENABLED = os.getenv("IMAGE_ENGINE_ENABLED", "false").lower() == "true"
+# Everything routes through OpenRouter — its Image API carries the same models,
+# so the existing OPENROUTER_API_KEY covers text, images, and the vision gate.
+# One key, one provider, no second SDK.
+IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "openrouter")
+# Seedream 4.5 is the default for its film-like grade, which is the register we
+# want. Swap freely — the model is a variable in the learning loop, not a
+# constant, and every generated post records which model produced it.
+# NOTE: OpenRouter's slug is `bytedance-seed/...`, not Replicate's `bytedance/...`.
+IMAGE_MODEL = os.getenv("IMAGE_MODEL", "bytedance-seed/seedream-4.5")
+# Candidates generated per post. Best-of-N is how the vision gate earns its keep:
+# score each, publish the best. Also the same mechanism carousels will need.
+IMAGE_CANDIDATES = int(os.getenv("IMAGE_CANDIDATES", "2"))
+# Multimodal model that reviews generated frames before they publish.
+VISION_GATE_ENABLED = os.getenv("VISION_GATE_ENABLED", "true").lower() == "true"
+VISION_MODEL = os.getenv("VISION_MODEL", "google/gemini-3.1-flash-lite")
+# Fraction of posts that get a generated background. 0.5 runs photo against the
+# existing black cards 50/50 so subs-per-1k decides which wins, rather than us.
+IMAGE_BACKGROUND_RATIO = float(os.getenv("IMAGE_BACKGROUND_RATIO", "0.5"))
+
+# Display typeface, bundled in assets/fonts so CI and local render identically.
+# Both shipped faces are slabs rather than high-contrast didones — editorial
+# authority without borrowing the reference account's Playfair-style fingerprint.
+#   ZillaSlab-Bold.ttf  humanist slab, a little warmth
+#   Arvo-Bold.ttf       geometric slab, heavier and blunter
+BRAND_FONT = os.getenv("BRAND_FONT", "ZillaSlab-Bold.ttf")
+
 # Hook archetypes — the opening sentence structure.
 #
 # The first sentence is the strongest performance lever we actually control, so

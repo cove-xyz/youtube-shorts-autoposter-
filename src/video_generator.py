@@ -25,6 +25,9 @@ from PIL import Image, ImageDraw, ImageFont
 from src.config import (
     VIDEOS_DIR,
     AUDIO_DIR,
+    BASE_DIR,
+    BRAND_FONT,
+    YOUTUBE_CHANNEL_NAME,
     YOUTUBE_VIDEO_DURATION,
     YOUTUBE_HANDLE,
 )
@@ -32,21 +35,33 @@ from src.config import (
 WIDTH, HEIGHT = 1080, 1920
 FPS = 24
 
-# Hook sentence color — warm gold stands out against black, stops the scroll
-HOOK_COLOR = (255, 200, 60)
-# Progress bar color — subtle white
-PROGRESS_COLOR = (80, 80, 80)
+# All type is white. The previous gold hook was the single most recognisable
+# signal of a motivational-quote page — the exact register our own theme scores
+# rank worst. Both sentences are the same weight and colour now; the
+# sentence-by-sentence reveal already does the emphasis work that colour was doing.
+TEXT_COLOR = (255, 255, 255)
 
 # --- Font loading ---
 
+# Repo-bundled display face, first in the list on every platform.
+#
+# Before this, the candidate list started with macOS system fonts and fell
+# through to Liberation/DejaVu — meaning local renders were Futura Condensed
+# ExtraBold while every video actually published from the Ubuntu runner was a
+# generic Helvetica clone, or PIL's default bitmap if neither was installed. The
+# brand had no consistent typeface at all. Bundling the file makes rendering
+# identical everywhere and turns the typeface into a decision instead of an
+# accident. Swap with BRAND_FONT (see config) — both bundled faces are slabs
+# rather than high-contrast didones, deliberately unlike the reference account's
+# Playfair-style treatment, which is its fingerprint and not ours to take.
+_BUNDLED_FONT = BASE_DIR / "assets" / "fonts" / BRAND_FONT
+
 FONT_CANDIDATES_BOLD = [
-    ("/System/Library/Fonts/Supplemental/Futura.ttc", 4),   # Futura Condensed ExtraBold
-    ("/System/Library/Fonts/Supplemental/Impact.ttf", 0),
-    ("/System/Library/Fonts/Supplemental/DIN Condensed Bold.ttf", 0),
-    ("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 0),
-    ("/System/Library/Fonts/Supplemental/Futura.ttc", 2),   # Futura Bold
-    ("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", 0),
-    ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 0),
+    (str(_BUNDLED_FONT), 0),
+    # Fallbacks only — if these are ever reached, the bundled file is missing
+    ("/System/Library/Fonts/Supplemental/Georgia Bold.ttf", 0),
+    ("/usr/share/fonts/truetype/liberation/LiberationSerif-Bold.ttf", 0),
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf", 0),
 ]
 
 FONT_CANDIDATES_LIGHT = [
@@ -123,6 +138,40 @@ def _get_audio_duration(audio_path: Path) -> float:
 
 # --- Frame rendering ---
 
+def _prepare_background(bg_path: str | Path) -> Image.Image | None:
+    """Load a background and apply a legibility scrim.
+
+    White type over photography needs the photograph pushed back or it becomes
+    unreadable — the reference account drop-shadows for the same reason. Two
+    passes: a flat dim across the whole frame so the type never fights a bright
+    highlight, then a gradient weighted to the bottom where the type and CTA sit.
+    """
+    try:
+        img = Image.open(bg_path).convert("RGB")
+    except Exception as e:
+        print(f"  Could not load background ({type(e).__name__}) — using plain card")
+        return None
+
+    if img.size != (WIDTH, HEIGHT):
+        img = img.resize((WIDTH, HEIGHT), Image.LANCZOS)
+
+    # Flat dim over the whole frame
+    img = Image.blend(img, Image.new("RGB", img.size, (0, 0, 0)), 0.28)
+
+    # Bottom-weighted gradient: transparent at the top, ~72% black at the base.
+    # Built as a one-pixel-wide column and stretched, which is far cheaper than
+    # evaluating a per-pixel function over 2M pixels.
+    ramp = Image.new("L", (1, HEIGHT))
+    for y in range(HEIGHT):
+        t = y / (HEIGHT - 1)
+        # Quadratic ease so the darkening stays out of the subject's face
+        ramp.putpixel((0, y), int(255 * 0.72 * (t ** 2.2)))
+    mask = ramp.resize((WIDTH, HEIGHT))
+    img = Image.composite(Image.new("RGB", img.size, (0, 0, 0)), img, mask)
+
+    return img
+
+
 def _render_frame(
     sentences: list[str],
     visible_up_to: int,
@@ -136,16 +185,22 @@ def _render_frame(
     show_cta: bool = False,
     cta_alpha: float = 0.0,
     progress: float = 0.0,
+    background: Image.Image | None = None,
 ) -> bytes:
-    """Render a single video frame and return raw RGB bytes."""
-    img = Image.new("RGB", (WIDTH, HEIGHT), color=(0, 0, 0))
+    """Render a single video frame and return raw RGB bytes.
+
+    `background` is a pre-scrimmed 1080x1920 RGB image (see _prepare_background).
+    It is copied per frame rather than drawn on, because the caller reuses one
+    prepared background across every frame of the video.
+    """
+    if background is not None:
+        img = background.copy()
+    else:
+        img = Image.new("RGB", (WIDTH, HEIGHT), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # --- Progress bar at top (thin, subtle) ---
-    bar_height = 3
-    bar_width = int(WIDTH * progress)
-    if bar_width > 0:
-        draw.rectangle([0, 0, bar_width, bar_height], fill=PROGRESS_COLOR)
+    # No progress bar. A 3px bar across the top is a Shorts/TikTok UI convention
+    # — it announces "content unit". A photograph does not have a progress bar.
 
     current_y = y_start
 
@@ -159,39 +214,43 @@ def _render_frame(
         else:
             alpha = fade_alpha
 
-        # Sentence 0 (hook) = gold, rest = white
-        if s_idx == 0:
-            hr, hg, hb = HOOK_COLOR
-            color = (int(hr * alpha), int(hg * alpha), int(hb * alpha))
-        else:
-            color_val = int(255 * alpha)
-            color = (color_val, color_val, color_val)
+        # Every sentence the same white; only the fade differs
+        v = int(255 * alpha)
+        color = (v, v, v)
 
         for line in lines:
             bbox = font.getbbox(line)
             line_width = bbox[2] - bbox[0]
             x = (WIDTH - line_width) // 2
+            if background is not None:
+                # Per-glyph shadow. Over photography a scrim alone is not enough —
+                # type crossing a light-to-dark edge loses its outline. Offset
+                # copies behind the glyph keep it readable on any background, and
+                # cost nothing on the plain-card path where they are skipped.
+                shadow = (0, 0, 0)
+                for dx, dy in ((3, 3), (-2, 2), (2, -2), (0, 4)):
+                    draw.text((x + dx, current_y + dy), line, fill=shadow, font=font)
             draw.text((x, current_y), line, fill=color, font=font)
             current_y += line_height
 
         # Gap between sentences
         current_y += line_height // 2
 
-    # CTA: "FOLLOW @MASTERINGMONEYXYZ" — visible whole video, brightens at end
-    cta_text = f"FOLLOW {YOUTUBE_HANDLE.upper()}"
-    cta_bbox = cta_font.getbbox(cta_text)
-    cta_width = cta_bbox[2] - cta_bbox[0]
-    if show_cta:
-        cta_val = int(255 * cta_alpha)
-    else:
-        cta_val = 70
-    cta_fill = (cta_val, cta_val, cta_val)
-    draw.text(
-        ((WIDTH - cta_width) // 2, HEIGHT - 350),
-        cta_text,
-        fill=cta_fill,
-        font=cta_font,
-    )
+    # Wordmark, not a call to action.
+    #
+    # This was "FOLLOW @MASTERINGMONEYXYZ", brightening at the end. A wordmark
+    # builds a name; FOLLOW asks for a favour, and the reference account never
+    # asks — it just signs the work. Constant and dim rather than pulsing,
+    # because confidence reads better than urgency.
+    mark_text = YOUTUBE_CHANNEL_NAME.upper()
+    mark_bbox = cta_font.getbbox(mark_text)
+    mark_width = mark_bbox[2] - mark_bbox[0]
+    mark_x = (WIDTH - mark_width) // 2
+    mark_y = HEIGHT - 250
+    if background is not None:
+        for dx, dy in ((2, 2), (-1, 1), (0, 3)):
+            draw.text((mark_x + dx, mark_y + dy), mark_text, fill=(0, 0, 0), font=cta_font)
+    draw.text((mark_x, mark_y), mark_text, fill=(150, 150, 150), font=cta_font)
 
     return img.tobytes()
 
@@ -267,6 +326,7 @@ def create_video(
     duration: int | None = None,
     music_path: str | Path | None = None,
     filename: str | None = None,
+    background_path: str | Path | None = None,
 ) -> Path:
     """Generate a YouTube Shorts video with sentence-by-sentence text reveal.
 
@@ -306,7 +366,10 @@ def create_video(
     total_frames = duration * FPS
 
     # --- Layout calculation ---
-    display_text = text.upper()
+    # Sentence case, not caps. Caps shout, and shouting is the visual grammar of
+    # hustle content — the register our own theme scores rank worst. The LLM
+    # already writes the quote in sentence case, so this is simply not destroying it.
+    display_text = text
     sentences = _split_sentences(display_text)
     if not sentences:
         sentences = [display_text]
@@ -328,8 +391,22 @@ def create_video(
     brand_font = _find_font(32, FONT_CANDIDATES_LIGHT)
     cta_font = _find_font(36, FONT_CANDIDATES_BOLD)
 
-    # Center vertically
-    y_start = (HEIGHT - total_text_height) // 2 - 40
+    # Prepare the background once and reuse it for every frame — scrimming it
+    # per frame would repeat the same work `duration * FPS` times.
+    background = _prepare_background(background_path) if background_path else None
+
+    # Text placement.
+    #
+    # On a plain card, centred is right — there is nothing to avoid. Over a
+    # photograph it is wrong: centred type lands at roughly 41-55% of the frame,
+    # which is exactly where the subject's face and torso are, while the quiet
+    # lower third the prompt deliberately reserves sits empty. So when there is a
+    # background, anchor the block's BASE just above the CTA and let it grow
+    # upward — type over the subject's body and ground, never over the face.
+    if background is not None:
+        y_start = (HEIGHT - 420) - total_text_height
+    else:
+        y_start = (HEIGHT - total_text_height) // 2 - 40
 
     # --- Timeline ---
     num_sentences = len(sentences)
@@ -449,6 +526,7 @@ def create_video(
             show_cta=show_cta,
             cta_alpha=cta_alpha,
             progress=progress,
+            background=background,
         )
         try:
             proc.stdin.write(frame_bytes)

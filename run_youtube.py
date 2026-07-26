@@ -6,6 +6,7 @@ Usage:
     python run_youtube.py preview        Generate one Short without uploading
     python run_youtube.py batch N        Generate and upload N Shorts (max 5)
     python run_youtube.py verify         Test YouTube API credentials
+    python run_youtube.py verify-image   Generate one background and report what broke
     python run_youtube.py queue          Show database queue status
     python run_youtube.py analytics      Fetch YouTube Analytics, update theme scores
     python run_youtube.py analytics 7    Same but only last 7 days
@@ -74,6 +75,11 @@ def cmd_verify():
     sys.exit(0 if success else 1)
 
 
+def cmd_verify_image():
+    from src.image_engine import verify_image_engine
+    sys.exit(0 if verify_image_engine() else 1)
+
+
 def cmd_analytics():
     from src.analytics import run_analytics_sync
     init_db()
@@ -135,6 +141,7 @@ COMMANDS = {
     "preview": cmd_preview,
     "batch": cmd_batch,
     "verify": cmd_verify,
+    "verify-image": cmd_verify_image,
     "queue": cmd_queue,
     "analytics": cmd_analytics,
     "tiktok-auth": cmd_tiktok_auth,

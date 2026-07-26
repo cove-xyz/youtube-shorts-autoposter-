@@ -162,16 +162,16 @@ def generate_story_image(text: str, filename: str | None = None) -> Path:
 # --- YouTube ---
 
 def generate_youtube_image(text: str, filename: str | None = None) -> Path:
-    """Generate a 1080x1920 YouTube Shorts image.
+    """Generate a 1080x1920 YouTube Shorts image (used as the thumbnail).
 
-    Pure black background. White ALL CAPS text. Heavy bold font.
-    Centered brand watermark below.
+    Pure black background, white sentence-case text, centred wordmark below.
+    Kept in sentence case to match the video frames — see video_generator.
     """
     width, height = 1080, 1920
     img = Image.new("RGB", (width, height), color=(0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    display_text = text.upper()
+    display_text = text
 
     # --- Quote text ---
     padding = 80
