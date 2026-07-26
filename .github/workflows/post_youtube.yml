@@ -53,10 +53,11 @@ jobs:
           YOUTUBE_VIDEO_DURATION: "10"
           ELEVENLABS_ENABLED: "false"
           TIMEZONE: America/New_York
-          # Image engine stays off until the output has been reviewed via
-          # `run_youtube.py verify-image`. Uses the existing OPENROUTER_API_KEY —
-          # images, text, and the vision gate all route through OpenRouter.
-          IMAGE_ENGINE_ENABLED: ${{ vars.IMAGE_ENGINE_ENABLED || 'false' }}
+          # Image engine is ON in CI. The default in src/config.py stays false so
+          # local previews do not spend money on every run — CI opts in here.
+          # Kill switch: set an IMAGE_ENGINE_ENABLED repo variable to "false";
+          # a set variable wins over this default.
+          IMAGE_ENGINE_ENABLED: ${{ vars.IMAGE_ENGINE_ENABLED || 'true' }}
           IMAGE_MODEL: ${{ vars.IMAGE_MODEL || 'bytedance-seed/seedream-4.5' }}
           IMAGE_BACKGROUND_RATIO: ${{ vars.IMAGE_BACKGROUND_RATIO || '0.5' }}
           IMAGE_CANDIDATES: ${{ vars.IMAGE_CANDIDATES || '2' }}
