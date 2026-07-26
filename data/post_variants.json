@@ -12,5 +12,21 @@
     "image_model": "bytedance-seed/seedream-4.5",
     "image_subject": "A weathered farmer kneeling in a sunlit field, hands cradling a handful of soil, gaze steady and unshaken.",
     "vision_score": 8
+  },
+  {
+    "video_id": "BC8dWm5etqk",
+    "posted_at": "2026-07-26T18:50:40-04:00",
+    "theme": "mindset",
+    "hook_style": "comparison",
+    "duration_s": 10,
+    "voice": false,
+    "source": "original",
+    "quote": "Discipline weighs ounces. Regret weighs tons.",
+    "background": "generated",
+    "image_model": "bytedance-seed/seedream-4.5",
+    "image_subject": "A boxer mid-punch, sweat flying, muscles taut, eyes locked on the target.",
+    "vision_score": 9,
+    "text_model": "deepseek/deepseek-chat-v3-0324",
+    "judge_score": 9
   }
 ]
