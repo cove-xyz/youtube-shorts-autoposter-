@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "video_id": "dp1J4bERVMY",
+    "posted_at": "2026-07-26T16:59:14-04:00",
+    "theme": "stoicism",
+    "hook_style": "status_challenge",
+    "duration_s": 10,
+    "voice": false,
+    "source": "original",
+    "quote": "Rich minds don't panic sell. Fear is the tax on weak hands.",
+    "background": "generated",
+    "image_model": "bytedance-seed/seedream-4.5",
+    "image_subject": "A weathered farmer kneeling in a sunlit field, hands cradling a handful of soil, gaze steady and unshaken.",
+    "vision_score": 8
+  }
+]
