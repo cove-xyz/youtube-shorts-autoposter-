@@ -1,3 +1,5 @@
+import re
+
 from src.config import YOUTUBE_CHANNEL_NAME
 from src.llm import generate
 
@@ -6,14 +8,14 @@ from src.llm import generate
 HASHTAG_POOLS = {
     "wealth_building": ["#wealth", "#buildwealth", "#wealthmindset", "#moneymoves", "#financialgrowth"],
     "mindset": ["#mindset", "#growthmindset", "#winnermindset", "#mentalstrength", "#mindsetshift"],
-    "discipline": ["#discipline", "#consistency", "#grindmode", "#noexcuses", "#dailygrind"],
+    "discipline": ["#discipline", "#consistency", "#craftsmanship", "#noexcuses", "#showupdaily"],
     "investing": ["#investing", "#invest", "#smartmoney", "#financialliteracy", "#compounding"],
-    "entrepreneurship": ["#entrepreneur", "#startup", "#hustle", "#business", "#ceo"],
+    "entrepreneurship": ["#entrepreneur", "#smallbusiness", "#ownersonly", "#business", "#buildsomething"],
     "autonomy": ["#ownyourtime", "#selfemployed", "#ownboss", "#debtfree", "#freedom"],
     "productivity": ["#productivity", "#efficiency", "#timemanagement", "#highperformance", "#focus"],
     "leadership": ["#leadership", "#leader", "#influence", "#executive", "#vision"],
     "stoicism": ["#stoicism", "#stoic", "#marcusaurelius", "#philosophy", "#innerpeace"],
-    "self_improvement": ["#selfimprovement", "#levelup", "#bettereveryday", "#personalgrowth", "#evolve"],
+    "self_improvement": ["#selfimprovement", "#bettereveryday", "#personalgrowth", "#characterbuilding", "#quietwork"],
 }
 
 # Brand hashtag derives from the channel name so a rename applies everywhere
@@ -24,25 +26,78 @@ UNIVERSAL_HASHTAGS = [
 ]
 
 
+def _clean_caption(text: str) -> str:
+    """Strip wrapper artifacts the model copies from the examples.
+
+    Even with an explicit instruction, models reproduce whatever shape they see:
+    surrounding quotes, a trailing [ironic] label, or a paragraph explaining the
+    choice. Cheaper to remove them here than to keep re-tuning the prompt.
+    """
+    text = text.strip()
+    # Drop an explanation block introduced by a bracketed label
+    text = re.split(r"\n\s*[\[(](?:IRONIC|SINCERE)", text, flags=re.I)[0]
+    text = text.split("\n")[0].strip()
+    text = re.sub(r"\s*[\[(](?:ironic|sincere)[^\])]*[\])]\s*$", "", text, flags=re.I)
+    text = text.strip().strip('"').strip("'").strip()
+    text = text.replace("*", "").replace("—", " - ").replace("–", " - ")
+    return text.strip()
+
+
 def generate_caption(quote_text: str, theme: str) -> str:
-    """Generate an Instagram caption for a quote."""
-    prompt = f"""Write an Instagram caption for this quote posted by an account called "{YOUTUBE_CHANNEL_NAME}":
+    """Generate an Instagram caption — a second beat, not a restatement.
 
-Quote: "{quote_text}"
-Theme: {theme}
+    The previous version asked for "2-3 sentences expanding on the idea, ending
+    with a thought-provoking question". That is engagement bait and it is exactly
+    backwards: the reference accounts in this genre never expand and never ask.
+    The caption TURNS on the image — undercuts it or doubles down on it — and the
+    alternation between those two registers is what the voice actually is.
+    """
+    from src.content_generator import _load_canon
 
-Rules:
-- 2-3 sentences expanding on the idea
-- End with a thought-provoking question OR a direct call to action
-- Masculine, direct, motivational tone
-- NO emojis
-- NO hashtags (those get added separately)
-- Do NOT give specific financial advice
-- Keep it under 200 characters total
+    canon = _load_canon()
+    cap = canon.get("caption", {})
+    human = "\n".join(f"  - {r}" for r in canon.get("human_voice", {}).get("rules", []))
+    # Rendered WITHOUT quote marks or register labels around the caption: the
+    # model copies whatever wrapper it sees, and labelled examples produced
+    # captions like: "..." [ironic] followed by an explanation paragraph.
+    examples = "\n\n".join(
+        f'Line on image: {e["line"]}\nCaption:\n{e["caption"]}'
+        for e in cap.get("examples", [])
+    )
+    banned = ", ".join(canon.get("forbidden_vocabulary", []))
 
-Return ONLY the caption text."""
+    prompt = f"""Write ONE Instagram caption to sit under this line.
 
-    caption = generate(prompt, max_tokens=300)
+THE LINE ON THE IMAGE
+"{quote_text}"
+
+WHAT A CAPTION IS FOR
+{cap.get("_why", "")}
+
+EXAMPLES
+{examples}
+
+SOUNDING LIKE A PERSON
+{human}
+
+RULES
+- Under 120 characters. Often much shorter — four words can be the whole caption.
+- Never restate the line. Never explain it. Never summarise it.
+- Never end with a question. We do not farm comments.
+- No emojis, no hashtags, no call to action, no "double tap if".
+- Pick ONE register and commit to it:
+    IRONIC  = dry, deadpan, understated. An aside muttered by someone who has
+              seen this before. NOT relatable-meme, NOT self-deprecating
+              millennial voice, NOT "me at 3am", NOT quirky.
+    SINCERE = double down on the line and mean it. Still specific, still short.
+- Output the caption text and nothing else. No quotation marks around it, no
+  register label, no explanation of your choice, no markdown, no asterisks.
+- Never use these words: {banned}
+- Do not give specific financial advice.
+
+Return only the caption."""
+
+    caption = _clean_caption(generate(prompt, max_tokens=120))
 
     # Add hashtags
     theme_tags = HASHTAG_POOLS.get(theme, [])[:5]

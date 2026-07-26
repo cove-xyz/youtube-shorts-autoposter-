@@ -183,6 +183,79 @@ def _load_canon() -> dict:
         return {}
 
 
+# How many recent posts the shape guard looks at, and the most of them that may
+# share one structural shape before that shape is considered overused.
+SHAPE_WINDOW = 20
+SHAPE_MAX_SHARE = 0.35
+
+
+def _shape(text: str) -> tuple:
+    """A coarse structural fingerprint of a line.
+
+    Content variety we already get; STRUCTURAL variety we do not. The default
+    LLM cadence is a balanced antithesis — two clauses of near-equal length, the
+    second mirroring the first ("Discipline weighs ounces. Regret weighs tons.").
+    Each one is fine. Thirty in a row is a signature, and it reads as
+    machine-written even when nobody can say why.
+
+    The fingerprint is deliberately coarse — it groups lines that FEEL the same
+    shape rather than trying to parse grammar:
+      - how many sentences
+      - the length band of each of the first two
+      - whether the halves are balanced (near-equal length)
+      - whether a content word echoes across the halves (explicit parallelism)
+    """
+    parts = [p.strip() for p in re.split(r"[.!?]+", text) if p.strip()]
+    n = len(parts)
+    if n == 0:
+        return (0,)
+
+    def band(words: int) -> int:
+        # 0: <=4 words, 1: 5-7, 2: 8-11, 3: 12+
+        return 0 if words <= 4 else 1 if words <= 7 else 2 if words <= 11 else 3
+
+    counts = [len(p.split()) for p in parts]
+    b1 = band(counts[0])
+    b2 = band(counts[1]) if n > 1 else -1
+
+    balanced = False
+    echo = False
+    if n >= 2:
+        a, b = counts[0], counts[1]
+        balanced = 0.6 <= (a / b if b else 99) <= 1.6
+        echo = bool(_content_words(parts[0]) & _content_words(parts[1]))
+
+    return (min(n, 3), b1, b2, balanced, echo)
+
+
+def _shape_counts(texts: list[str]) -> dict:
+    counts: dict = {}
+    for t in texts:
+        s = _shape(t)
+        counts[s] = counts.get(s, 0) + 1
+    return counts
+
+
+def _prefer_fresh_shapes(candidates: list[str], history: list[str]) -> list[str]:
+    """Drop candidates whose shape is already over-represented in recent posts.
+
+    A filter, never a hard reject: if every candidate is an overused shape we
+    return them all rather than lose the post. Steering beats blocking, and
+    running this over a batch of six means variety costs us nothing.
+    """
+    recent = history[-SHAPE_WINDOW:]
+    if len(recent) < 5:
+        return candidates
+
+    counts = _shape_counts(recent)
+    limit = max(1, int(len(recent) * SHAPE_MAX_SHARE))
+    fresh = [c for c in candidates if counts.get(_shape(c), 0) < limit]
+
+    if fresh and len(fresh) < len(candidates):
+        print(f"    shape guard: dropped {len(candidates) - len(fresh)} overused-shape candidate(s)")
+    return fresh or candidates
+
+
 def _parse_candidates(raw: str) -> list[str]:
     """Pull numbered lines out of the model's reply.
 
@@ -220,6 +293,8 @@ def _judge_candidates(candidates: list[str], canon: dict) -> tuple[str, int, str
 
 THE PRINCIPLE
 {canon.get("principle", "")}
+
+{canon.get("principle_warning", "")}
 
 JUDGE AGAINST THIS
 {tests}
@@ -311,12 +386,32 @@ def generate_original_content(theme: str, inspiration: dict | None = None) -> di
     bad = "\n".join(f'  "{e["line"]}"\n     -> {e["why"]}' for e in canon.get("bad", []))
     tests = "\n".join(f"  {i + 1}. {t}" for i, t in enumerate(canon.get("register_test", [])))
     banned = ", ".join(canon.get("forbidden_vocabulary", []))
+    human = "\n".join(f"  - {r}" for r in canon.get("human_voice", {}).get("rules", []))
+
+    # Operator-written lines outrank everything generated. They carry references
+    # and jokes a model cannot have, so they lead the prompt rather than trail it.
+    hl = canon.get("human_lines", {}).get("lines", [])
+    human_block = ""
+    if hl:
+        rendered = "\n".join(
+            f'  "{h["line"]}"' + (f'\n     -> {h["why"]}' if h.get("why") else "")
+            for h in hl if h.get("line")
+        )
+        human_block = (
+            "\nWRITTEN BY THE OPERATOR — these are the truest examples of the voice.\n"
+            "Match their texture before anything else below.\n" + rendered + "\n"
+        )
 
     prompt = f"""Write {CANDIDATES_PER_POST} candidate lines about {theme_desc} for a channel that argues character beats calculation.
 {inspiration_text}
-
+{human_block}
 THE PRINCIPLE
 {canon.get("principle", "")}
+
+{canon.get("principle_warning", "")}
+
+SOUNDING LIKE A PERSON
+{human}
 
 WHAT WE ARE AGAINST
 {canon.get("enemy", "")}
@@ -342,10 +437,12 @@ FORM
 - Never name a specific stock, coin or product.
 - Never use these words: {banned}
 
-The {CANDIDATES_PER_POST} candidates must differ in STRUCTURE, not just wording. If two of
-them could be rewrites of each other, replace one. Reach for the strange, exact
-image over the safe, familiar phrasing — a line nobody has written yet beats a
-line that is merely correct.
+The {CANDIDATES_PER_POST} candidates must differ in STRUCTURE, not merely in wording. Do not
+return {CANDIDATES_PER_POST} variations on "statement, then its mirror" — that is one shape, not
+{CANDIDATES_PER_POST} candidates. Across the batch include at least: one single sentence with no
+second half, one where the second part is much shorter than the first, and one
+that is not balanced at all. Reach for the strange, exact image over the safe,
+familiar phrasing — a line nobody has written yet beats a line that is merely correct.
 
 Return exactly {CANDIDATES_PER_POST} lines, one per line, numbered 1. to {CANDIDATES_PER_POST}. Nothing else."""
 
@@ -366,6 +463,9 @@ Return exactly {CANDIDATES_PER_POST} lines, one per line, numbered 1. to {CANDID
     print(f"    {len(candidates)} candidates, {len(survivors)} survived dedup")
     if not survivors:
         return None
+
+    # Steer away from shapes we have overused lately, before the judge chooses
+    survivors = _prefer_fresh_shapes(survivors, posted_titles)
 
     text, judge_score, judge_reason = _judge_candidates(survivors, canon)
     print(f'    picked {judge_score}/10 — {judge_reason}')
