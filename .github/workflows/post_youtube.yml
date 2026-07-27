@@ -74,6 +74,12 @@ jobs:
           # OpenRouter slug and 400s, which the gate treats as fail-open — a dead
           # gate that reports nothing. Verified against their live model list.
           VISION_MODEL: ${{ vars.VISION_MODEL || 'google/gemini-3.1-flash-lite' }}
+          # Instagram cross-posting. Without these the poster silently skips every
+          # Reel — src/postpeer.py returns early on a missing key rather than
+          # failing, so an unwired secret looks exactly like a working config.
+          POSTPEER_ACCESS_KEY: ${{ secrets.POSTPEER_ACCESS_KEY }}
+          POSTPEER_IG_ACCOUNT_ID: ${{ vars.POSTPEER_IG_ACCOUNT_ID }}
+          REELS_PER_DAY: ${{ vars.REELS_PER_DAY || '2' }}
         run: python run_youtube.py post
 
       - name: Commit updated title history

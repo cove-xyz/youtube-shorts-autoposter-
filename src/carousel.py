@@ -44,7 +44,9 @@ from src.image_engine import (
 from src.video_generator import _find_font, _wrap_text
 
 WIDTH, HEIGHT = 1080, 1350  # 4:5, the tallest ratio Instagram shows in feed
-SLIDES = 5
+# Four, not five: one rejection is common and the set reads fine at four,
+# while a fifth generation is a straight 20% cost add on the biggest line item.
+SLIDES = 4
 
 # The Short reserves the lower HALF of a 9:16 frame. A 4:5 frame is far less tall,
 # so the same instruction would squeeze the subject into a strip. Here the type
