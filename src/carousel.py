@@ -144,8 +144,13 @@ def _carousel_subjects(quote: str, theme: str, n: int) -> list[str]:
         raw = generate(
             f'You are casting a {n}-photograph sequence to sit behind this line:\n\n'
             f'"{quote}"\n\n'
-            f"Choose ONE specific place and ONE person, then describe {n} different "
-            "moments there. Rules:\n"
+            "First work out what the line is actually ABOUT — the human situation "
+            "underneath it, not the objects it happens to mention. A line using the "
+            "word 'clothes' to talk about a broken promise is about the promise, not "
+            "about clothes; photographing a suitcase would be a literal reading of a "
+            "figurative line, and the set would not make sense next to the words.\n\n"
+            f"Then choose ONE specific place and ONE person for THAT situation, and "
+            f"describe {n} different moments there. Rules:\n"
             "- Every moment is in the SAME place, same light, same day. The set must "
             "read as one afternoon, not five locations.\n"
             "- Each moment shows something DIFFERENT happening: a different action, a "

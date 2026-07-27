@@ -256,6 +256,21 @@ def _prefer_fresh_shapes(candidates: list[str], history: list[str]) -> list[str]
     return fresh or candidates
 
 
+def _normalise_dashes(text: str) -> str:
+    """Turn em/en dashes into clean sentence breaks.
+
+    The previous one-liner was `.replace("—", ".").replace(" . ", ". ")`, which
+    damaged every dash it touched. A spaced dash produced "fit. that" with no
+    capital; a TIGHT dash produced "fit.that" with no space at all, because the
+    " . " cleanup had nothing to match. That shipped to Instagram.
+
+    Handles both spacings, restores the capital, and collapses any doubled space.
+    """
+    text = re.sub(r"\s*[—–]\s*", ". ", text)
+    text = re.sub(r"([.!?])\s+([a-z])", lambda m: f"{m.group(1)} {m.group(2).upper()}", text)
+    return re.sub(r"\s{2,}", " ", text).strip()
+
+
 def _parse_candidates(raw: str) -> list[str]:
     """Pull numbered lines out of the model's reply.
 
@@ -476,7 +491,7 @@ Return exactly {CANDIDATES_PER_POST} lines, one per line, numbered 1. to {CANDID
     print(f'    picked {judge_score}/10 — {judge_reason}')
     text = text.strip().strip('"').strip("'")
     # Enforce: replace any emdashes/endashes the LLM sneaks in
-    text = text.replace("—", ".").replace("–", ".").replace(" . ", ". ")
+    text = _normalise_dashes(text)
     # If LLM returned multiple lines/quotes, take only the first meaningful one
     lines = [l.strip() for l in text.split("\n") if l.strip()]
     if lines:
