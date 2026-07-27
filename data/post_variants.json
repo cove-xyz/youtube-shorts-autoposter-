@@ -28,5 +28,21 @@
     "vision_score": 9,
     "text_model": "deepseek/deepseek-chat-v3-0324",
     "judge_score": 9
+  },
+  {
+    "video_id": "HHxpHgmzr4E",
+    "posted_at": "2026-07-27T00:45:08-04:00",
+    "theme": "discipline",
+    "hook_style": "time_urgency",
+    "duration_s": 10,
+    "voice": false,
+    "source": "original",
+    "quote": "The alarm rings at 5:47 because the man you promised to become is already waiting.",
+    "background": "generated",
+    "image_model": "bytedance-seed/seedream-4.5",
+    "image_subject": "A middle-aged man in a wrinkled shirt, half-dressed, gripping a sink with white knuckles, staring into a foggy mirror.",
+    "vision_score": 9,
+    "text_model": "deepseek/deepseek-chat-v3-0324",
+    "judge_score": 9
   }
 ]
