@@ -1,12 +1,12 @@
 {
-  "wealth_building": 1.51,
-  "discipline": 1.658,
-  "mindset": 1.118,
-  "self_improvement": 1.66,
-  "entrepreneurship": 1.107,
-  "investing": 1.136,
-  "productivity": 1.056,
+  "wealth_building": 1.503,
+  "discipline": 1.63,
+  "mindset": 1.114,
+  "self_improvement": 1.651,
+  "entrepreneurship": 1.102,
+  "investing": 1.131,
+  "productivity": 1.051,
+  "autonomy": 1.0,
   "leadership": 1.0,
-  "stoicism": 1.0,
-  "autonomy": 1.0
+  "stoicism": 1.0
 }
