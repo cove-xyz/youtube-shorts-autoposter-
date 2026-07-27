@@ -193,7 +193,7 @@ def passes_quality_gate(img: Image.Image) -> tuple[bool, str]:
     return True, "ok"
 
 
-def _generate_openrouter(prompt: str, n: int = 1) -> list[Image.Image]:
+def _generate_openrouter(prompt: str, n: int = 1, aspect_ratio: str = "9:16") -> list[Image.Image]:
     """Generate n candidates via OpenRouter's Image API. Returns [] on failure.
 
     The payload is kept in one place because parameter support varies per model
@@ -214,7 +214,10 @@ def _generate_openrouter(prompt: str, n: int = 1) -> list[Image.Image]:
         # too small), and the default always satisfies that. We crop to 1080x1920
         # regardless, so anything at or above that is enough — leaving it unset
         # keeps this payload portable across models.
-        "aspect_ratio": "9:16",
+        # Was hardcoded to 9:16. Carousels then asked for a 4:5 composition in
+        # the prompt while generating 9:16 and cropping a third away — the model
+        # was composing for a frame that never shipped.
+        "aspect_ratio": aspect_ratio,
         "output_format": "jpeg",
     }
     headers = {

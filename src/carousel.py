@@ -191,7 +191,7 @@ def build_carousel(quote: str, theme: str, slides: int = SLIDES) -> dict | None:
     # before the timeout, at $0.04 a generation.
     used: list[str] = []
     for i, subject in enumerate(subjects):
-        images = _generate_openrouter(_build_prompt(subject), n=1)
+        images = _generate_openrouter(_build_prompt(subject), n=1, aspect_ratio="4:5")
         if not images:
             print(f"    slide {i + 1}: generation failed, skipping")
             continue
