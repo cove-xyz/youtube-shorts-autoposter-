@@ -44,5 +44,21 @@
     "vision_score": 9,
     "text_model": "deepseek/deepseek-chat-v3-0324",
     "judge_score": 9
+  },
+  {
+    "video_id": "CW1qhU8LI7w",
+    "posted_at": "2026-07-27T10:23:56-04:00",
+    "theme": "investing",
+    "hook_style": "comparison",
+    "duration_s": 10,
+    "voice": false,
+    "source": "original",
+    "quote": "You promised your kids a childhood, not a spreadsheet.",
+    "background": "plain",
+    "image_model": null,
+    "image_subject": null,
+    "vision_score": null,
+    "text_model": "deepseek/deepseek-chat-v3-0324",
+    "judge_score": 9
   }
 ]
