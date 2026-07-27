@@ -60,5 +60,21 @@
     "vision_score": null,
     "text_model": "deepseek/deepseek-chat-v3-0324",
     "judge_score": 9
+  },
+  {
+    "video_id": "1pM4PoQ5nvM",
+    "posted_at": "2026-07-27T13:04:09-04:00",
+    "theme": "mindset",
+    "hook_style": "status_challenge",
+    "duration_s": 10,
+    "voice": false,
+    "source": "original",
+    "quote": "You promised yourself you\u2019d be different. That promise is past due.",
+    "background": "plain",
+    "image_model": null,
+    "image_subject": null,
+    "vision_score": null,
+    "text_model": "deepseek/deepseek-chat-v3-0324",
+    "judge_score": 9
   }
 ]
