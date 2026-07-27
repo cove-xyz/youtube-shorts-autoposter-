@@ -270,8 +270,11 @@ def _parse_candidates(raw: str) -> list[str]:
         # Strip a leading "1.", "1)", "-", "*" if present
         line = re.sub(r"^\s*(?:\d+\s*[.)\-:]|[-*•])\s*", "", line).strip()
         line = line.strip('"').strip("'").strip()
-        # A candidate is two sentences in the target length band
-        if 40 <= len(line) <= 200 and line.count(".") >= 2:
+        # Length band only. This previously required two full stops, which
+        # silently discarded every single-sentence candidate before the judge
+        # saw it — the form rule and the canon's "vary the shape" instruction
+        # were fighting, and the parser was enforcing the losing side.
+        if 30 <= len(line) <= 200 and line.rstrip()[-1:] in ".!?":
             out.append(line)
     return out
 
@@ -428,9 +431,11 @@ TEST EVERY LINE AGAINST THIS
 HOOK STYLE FOR THIS BATCH: {chosen_hook}
 
 FORM
-- EXACTLY 2 sentences. Both end with a period.
-- The FIRST sentence is the hook: it stops a thumb in under 8 words.
-- The SECOND lands a specific consequence. Never vague advice.
+- ONE to THREE sentences. Two is common, but a single sentence that lands is
+  stronger than two that pad, and one long sentence followed by three words is
+  stronger still. Do NOT default to two.
+- Open with the hook: it stops a thumb in under 8 words.
+- Land a specific consequence somewhere. Never vague advice.
 - 60-120 characters total. Shorter is stronger.
 - No emdashes, endashes, colons or semicolons. Periods only.
 - No hashtags, no emojis, no quotation marks, no attribution.
