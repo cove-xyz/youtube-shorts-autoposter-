@@ -131,6 +131,20 @@ VISION_MODEL = os.getenv("VISION_MODEL", "google/gemini-3.1-flash-lite")
 # existing black cards 50/50 so subs-per-1k decides which wins, rather than us.
 IMAGE_BACKGROUND_RATIO = float(os.getenv("IMAGE_BACKGROUND_RATIO", "0.5"))
 
+# PostPeer — unified posting API. Used instead of the Graph API directly because
+# they have already passed Meta's App Review, which would otherwise be weeks.
+POSTPEER_ACCESS_KEY = os.getenv("POSTPEER_ACCESS_KEY", "")
+# The PostPeer Integration._id, NOT the Instagram-native numeric id their
+# dashboard displays. Discover via GET /v1/connect/integrations.
+POSTPEER_IG_ACCOUNT_ID = os.getenv("POSTPEER_IG_ACCOUNT_ID", "")
+# Reels per day. Deliberately below the 5/day Shorts cadence: Instagram's
+# tolerance for volume from a new account is lower than YouTube's, and 5 Reels a
+# day out of nowhere reads as spam. The variant log will tell us if this is wrong.
+REELS_PER_DAY = int(os.getenv("REELS_PER_DAY", "2"))
+# Whether a Reel also lands in the main grid. True keeps the grid populated;
+# false reserves the grid for carousels, which is the Based-Living-style plan.
+POSTPEER_SHARE_REELS_TO_FEED = os.getenv("POSTPEER_SHARE_REELS_TO_FEED", "false").lower() == "true"
+
 # Display typeface, bundled in assets/fonts so CI and local render identically.
 # Both shipped faces are slabs rather than high-contrast didones — editorial
 # authority without borrowing the reference account's Playfair-style fingerprint.

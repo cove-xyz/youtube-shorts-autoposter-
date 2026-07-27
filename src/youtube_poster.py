@@ -1,5 +1,6 @@
 import os
 import random
+from datetime import datetime, timezone
 from pathlib import Path
 
 from src.config import (
@@ -13,7 +14,7 @@ from src.config import (
 from src.content_generator import generate_content, _save_posted_title
 from src.image_engine import generate_background
 from src.variants import record_variant
-from src.caption_generator import generate_youtube_description, generate_youtube_tags
+from src.caption_generator import generate_caption, generate_youtube_description, generate_youtube_tags
 from src.image_generator import generate_youtube_image
 from src.safety_filter import is_safe, filter_caption
 from src.video_generator import create_video
@@ -34,6 +35,55 @@ def _generate_voice(quote: str) -> Path | None:
     except Exception as e:
         print(f"  Voice generation failed: {e}")
         return None
+
+
+def _reels_today() -> int:
+    """How many Reels we have already cross-posted today (UTC).
+
+    Counted from the variant log rather than from the clock, because crons here
+    routinely fire 20-70 minutes late. Tying the cadence to "which scheduled slot
+    is this" would drift; counting what actually went out does not, and it also
+    survives manual workflow_dispatch runs.
+    """
+    from src.variants import load_variants
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return sum(
+        1 for v in load_variants()
+        if v.get("reel_post_id") and str(v.get("posted_at", "")).startswith(today)
+    )
+
+
+def _maybe_publish_reel(video_path, image_path, quote: str, theme: str, video_id: str) -> None:
+    """Cross-post the Short to Instagram as a Reel, if under the daily cap."""
+    from src.config import POSTPEER_ACCESS_KEY, REELS_PER_DAY
+    from src.media_host import publish_media
+    from src.postpeer import publish_reel
+    from src.variants import record_variant
+
+    if not POSTPEER_ACCESS_KEY:
+        return
+
+    already = _reels_today()
+    if already >= REELS_PER_DAY:
+        print(f"[8/8] Reel skipped ({already}/{REELS_PER_DAY} already today)")
+        return
+
+    print(f"[8/8] Cross-posting Reel ({already + 1}/{REELS_PER_DAY} today)...")
+    try:
+        video_url = publish_media(video_path)
+        if not video_url:
+            return
+        # A cover frame chosen by Instagram often lands mid-fade on a half-drawn
+        # line; the thumbnail is the finished composition.
+        cover_url = publish_media(image_path)
+
+        caption = generate_caption(quote, theme)
+        post_id = publish_reel(video_url, caption, cover_url=cover_url)
+        if post_id:
+            record_variant(video_id, reel_post_id=post_id)
+    except Exception as e:
+        print(f"  Reel cross-post failed ({type(e).__name__}) — YouTube upload unaffected")
 
 
 def create_and_post_short() -> dict | None:
@@ -168,6 +218,13 @@ def create_and_post_short() -> dict | None:
         text_model=LLM_MODEL,
         judge_score=content.get("judge_score"),
     )
+
+    # 8. Cross-post to Instagram as a Reel, up to the daily cap.
+    #
+    # Must happen before the video file is deleted below. Everything here is
+    # best-effort: the YouTube upload has already succeeded, so a hosting or
+    # PostPeer failure must never turn this run into a failure.
+    _maybe_publish_reel(video_path, image_path, quote, theme, result["id"])
 
     # Clean up video file (images are cheap, videos are large)
     try:

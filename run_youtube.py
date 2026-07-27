@@ -7,6 +7,7 @@ Usage:
     python run_youtube.py batch N        Generate and upload N Shorts (max 5)
     python run_youtube.py verify         Test YouTube API credentials
     python run_youtube.py verify-image   Generate one background and report what broke
+    python run_youtube.py carousel       Build an Instagram carousel (add --post to publish)
     python run_youtube.py queue          Show database queue status
     python run_youtube.py analytics      Fetch YouTube Analytics, update theme scores
     python run_youtube.py analytics 7    Same but only last 7 days
@@ -80,6 +81,47 @@ def cmd_verify_image():
     sys.exit(0 if verify_image_engine() else 1)
 
 
+def cmd_carousel():
+    """Build one carousel. Renders files only; add --post to publish."""
+    from src.carousel import build_carousel
+    from src.content_generator import generate_content
+    from src.caption_generator import generate_caption
+
+    post = "--post" in sys.argv
+
+    content = generate_content(post_type="short")
+    if not content:
+        print("FAILED: could not generate a line")
+        sys.exit(1)
+    quote, theme = content["text"], content["theme"]
+    print(f'Line:  "{quote}"')
+    print(f"Theme: {theme}\n")
+
+    car = build_carousel(quote, theme)
+    if not car:
+        sys.exit(1)
+
+    caption = generate_caption(quote, theme)
+    print(f"\nCaption:\n  {caption.splitlines()[0]}")
+    print("\nSlides:")
+    for p in car["paths"]:
+        print(f'  open "{p}"')
+
+    if not post:
+        print("\n(files only — pass --post to publish to Instagram)")
+        sys.exit(0)
+
+    from src.media_host import publish_media
+    from src.postpeer import publish_carousel
+
+    print("\nUploading slides...")
+    urls = [u for u in (publish_media(p) for p in car["paths"]) if u]
+    if len(urls) < 3:
+        print("FAILED: not enough slides reached a public URL")
+        sys.exit(1)
+    sys.exit(0 if publish_carousel(urls, caption) else 1)
+
+
 def cmd_analytics():
     from src.analytics import run_analytics_sync
     init_db()
@@ -142,6 +184,7 @@ COMMANDS = {
     "batch": cmd_batch,
     "verify": cmd_verify,
     "verify-image": cmd_verify_image,
+    "carousel": cmd_carousel,
     "queue": cmd_queue,
     "analytics": cmd_analytics,
     "tiktok-auth": cmd_tiktok_auth,
