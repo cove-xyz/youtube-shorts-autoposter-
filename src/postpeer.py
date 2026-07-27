@@ -126,6 +126,38 @@ def publish_carousel(image_urls: list[str], caption: str) -> str | None:
     return None
 
 
+def schedule_carousel(image_urls: list[str], caption: str, when) -> str | None:
+    """Schedule a carousel for a future time. Returns postId or None.
+
+    Scheduling rather than publishing immediately is deliberate — see
+    carousel_publisher for why the gap doubles as the review window.
+    """
+    if not (POSTPEER_ACCESS_KEY and POSTPEER_IG_ACCOUNT_ID) or not image_urls:
+        return None
+    if len(image_urls) > 10:
+        image_urls = image_urls[:10]
+
+    body = _post({
+        "content": caption,
+        "scheduledFor": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timezone": "UTC",
+        "mediaItems": [{"url": u, "type": "image"} for u in image_urls],
+        "platforms": [{"platform": "instagram", "accountId": POSTPEER_IG_ACCOUNT_ID}],
+    })
+    return body.get("postId") if body else None
+
+
+def cancel_scheduled(post_id: str) -> bool:
+    """Cancel a scheduled post. Note: DELETE /v1/posts/{id} refuses while a post
+    is still scheduled — it must be cancelled through this path first."""
+    try:
+        r = requests.delete(f"{API}/posts/scheduled/{post_id}", headers=_headers(), timeout=30)
+        return r.status_code < 400 and r.json().get("success", False)
+    except Exception as e:
+        print(f"  postpeer: cancel failed ({type(e).__name__})")
+        return False
+
+
 def verify() -> bool:
     """Report configuration and connected accounts without posting anything."""
     print(f"access key : {'set' if POSTPEER_ACCESS_KEY else 'MISSING'}")

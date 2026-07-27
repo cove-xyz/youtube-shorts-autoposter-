@@ -1,0 +1,65 @@
+name: Post Instagram Carousel
+
+on:
+  schedule:
+    # 11:00 UTC = 07:00 ET. The carousel is SCHEDULED for 11:00 ET rather than
+    # published here, so this four-hour gap is the review window: a bad set can be
+    # cancelled before anyone sees it. Four generated photographs plus a generated
+    # line and caption going to the grid unseen is the highest-exposure thing this
+    # system does — the grid is what people judge an account by, where a Short is
+    # one impression in a feed.
+    #
+    # Once a day, deliberately. Feed posts tolerate far less volume than Reels,
+    # and at one a day every slot has to earn out.
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  carousel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Build, judge and schedule a carousel
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'deepseek/deepseek-chat-v3-0324' }}
+          JUDGE_MODEL: ${{ vars.JUDGE_MODEL || 'anthropic/claude-haiku-4.5' }}
+          CANDIDATES_PER_POST: ${{ vars.CANDIDATES_PER_POST || '6' }}
+          YOUTUBE_CHANNEL_NAME: MASTERING MONEY
+          YOUTUBE_HANDLE: "@masteringmoneyxyz"
+          TIMEZONE: America/New_York
+          # Carousels always use generated imagery — there is no plain-card
+          # fallback for a feed post, so the engine is on regardless of the
+          # Shorts split.
+          IMAGE_ENGINE_ENABLED: "true"
+          IMAGE_MODEL: ${{ vars.IMAGE_MODEL || 'bytedance-seed/seedream-4.5' }}
+          VISION_MODEL: ${{ vars.VISION_MODEL || 'google/gemini-3.1-flash-lite' }}
+          CAROUSEL_TARGET_HOUR: ${{ vars.CAROUSEL_TARGET_HOUR || '11' }}
+          CAROUSEL_MIN_SCORE: ${{ vars.CAROUSEL_MIN_SCORE || '6' }}
+          POSTPEER_ACCESS_KEY: ${{ secrets.POSTPEER_ACCESS_KEY }}
+          POSTPEER_IG_ACCOUNT_ID: ${{ vars.POSTPEER_IG_ACCOUNT_ID }}
+          GH_TOKEN: ${{ github.token }}
+        run: python run_youtube.py carousel-scheduled
+
+      - name: Prune old media releases
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -c "from src.media_host import prune_old_releases; print(f'pruned {prune_old_releases()} old media releases')"

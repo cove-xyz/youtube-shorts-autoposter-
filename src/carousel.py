@@ -27,6 +27,8 @@ rather than restating it, which is where the account's voice actually lives.
 """
 import re
 import time
+
+import requests
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -173,6 +175,91 @@ def _carousel_subjects(quote: str, theme: str, n: int) -> list[str]:
     except Exception as e:
         print(f"    (subject sequence failed: {type(e).__name__})")
     return fallback
+
+
+CAROUSEL_RUBRIC = """You are reviewing a finished Instagram carousel before it publishes unseen.
+
+You are given every slide in order, the line printed on all of them, and the caption.
+
+Judge three things the per-slide checks cannot see:
+
+1. COHERENCE. Do these read as one place, one person, one day? A set that jumps
+   location, time of day or subject looks like the same prompt run N times rather
+   than a sequence. This is the most common failure.
+
+2. LEAD. Which slide should come FIRST? Slide one is the grid thumbnail and the
+   only frame most people ever see, so it must be the strongest image on its own,
+   with the clearest subject and the most readable type. It is often not the slide
+   that happens to be first.
+
+3. CAPTION. Does the caption connect to the line and the images? It should land a
+   second, different beat — not restate the line, but not be a non-sequitur either.
+   A caption about a gym under photographs of someone packing a suitcase is a miss.
+
+Reply in exactly this format, nothing else:
+COHERENT: <yes|no>
+LEAD: <slide number>
+CAPTION_OK: <yes|no>
+SCORE: <0-10 for the set as a whole>
+REASON: <one short sentence>"""
+
+
+def judge_carousel(paths: list[Path], line: str, caption: str) -> dict:
+    """Review the finished set as a whole. Returns verdict fields.
+
+    Distinct from the per-slide vision gate, which only ever sees one image and so
+    cannot judge whether four of them belong together, which should lead, or
+    whether the caption connects to anything. Fails open — a review outage should
+    cost us the ordering, not the post.
+    """
+    from src.config import OPENROUTER_API_KEY, VISION_MODEL
+    from src.image_engine import _encode_jpeg
+
+    default = {"coherent": True, "lead": 1, "caption_ok": True, "score": 5,
+               "reason": "not reviewed"}
+    if not OPENROUTER_API_KEY or not paths:
+        return default
+
+    content: list = [{"type": "text", "text":
+                      f"{CAROUSEL_RUBRIC}\n\nLINE ON EVERY SLIDE: {line}\nCAPTION: {caption}"}]
+    for i, p in enumerate(paths, 1):
+        content.append({"type": "text", "text": f"Slide {i}:"})
+        content.append({"type": "image_url", "image_url": {
+            "url": f"data:image/jpeg;base64,{_encode_jpeg(Image.open(p))}"}})
+
+    try:
+        r = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            json={"model": VISION_MODEL, "max_tokens": 160,
+                  "messages": [{"role": "user", "content": content}]},
+            headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"}, timeout=120)
+        if r.status_code >= 400:
+            print(f"    carousel judge HTTP {r.status_code}: {r.text[:160]}")
+            return default
+        text = r.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        print(f"    carousel judge failed ({type(e).__name__}) — not blocking")
+        return default
+
+    out = dict(default)
+    for ln in text.splitlines():
+        k, _, v = ln.partition(":")
+        k, v = k.strip().upper(), v.strip()
+        if k == "COHERENT":
+            out["coherent"] = v.lower().startswith("y")
+        elif k == "LEAD":
+            digits = "".join(c for c in v if c.isdigit())
+            if digits:
+                out["lead"] = max(1, min(len(paths), int(digits[:2])))
+        elif k == "CAPTION_OK":
+            out["caption_ok"] = v.lower().startswith("y")
+        elif k == "SCORE":
+            digits = "".join(c for c in v if c.isdigit())
+            if digits:
+                out["score"] = max(0, min(10, int(digits[:2])))
+        elif k == "REASON":
+            out["reason"] = v[:140]
+    return out
 
 
 def build_carousel(quote: str, theme: str, slides: int = SLIDES) -> dict | None:

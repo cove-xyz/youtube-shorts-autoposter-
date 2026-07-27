@@ -7,7 +7,8 @@ Usage:
     python run_youtube.py batch N        Generate and upload N Shorts (max 5)
     python run_youtube.py verify         Test YouTube API credentials
     python run_youtube.py verify-image   Generate one background and report what broke
-    python run_youtube.py carousel       Build an Instagram carousel (add --post to publish)
+    python run_youtube.py carousel       Build an Instagram carousel (add --post to publish now)
+    python run_youtube.py carousel-scheduled  Judge and schedule one for the optimal slot
     python run_youtube.py queue          Show database queue status
     python run_youtube.py analytics      Fetch YouTube Analytics, update theme scores
     python run_youtube.py analytics 7    Same but only last 7 days
@@ -122,6 +123,12 @@ def cmd_carousel():
     sys.exit(0 if publish_carousel(urls, caption) else 1)
 
 
+def cmd_carousel_scheduled():
+    """Generate, judge, and schedule a carousel for the optimal slot."""
+    from src.carousel_publisher import run
+    sys.exit(0 if run(dry_run="--dry-run" in sys.argv) else 1)
+
+
 def cmd_analytics():
     from src.analytics import run_analytics_sync
     init_db()
@@ -185,6 +192,7 @@ COMMANDS = {
     "verify": cmd_verify,
     "verify-image": cmd_verify_image,
     "carousel": cmd_carousel,
+    "carousel-scheduled": cmd_carousel_scheduled,
     "queue": cmd_queue,
     "analytics": cmd_analytics,
     "tiktok-auth": cmd_tiktok_auth,

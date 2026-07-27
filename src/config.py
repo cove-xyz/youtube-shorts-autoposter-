@@ -145,6 +145,15 @@ REELS_PER_DAY = int(os.getenv("REELS_PER_DAY", "2"))
 # false reserves the grid for carousels, which is the Based-Living-style plan.
 POSTPEER_SHARE_REELS_TO_FEED = os.getenv("POSTPEER_SHARE_REELS_TO_FEED", "false").lower() == "true"
 
+# Carousels. Target hour is in TIMEZONE (the audience's, America/New_York) — the
+# operator is in Hawaii, so scheduling on local time would land every post in the
+# small hours for nearly everyone reading it. 11am ET is the weekday midday slot.
+CAROUSEL_TARGET_HOUR = int(os.getenv("CAROUSEL_TARGET_HOUR", "11"))
+# The whole-set judge must clear this before anything is scheduled. Higher than
+# the per-slide gate's 4: a carousel is four images plus a line plus a caption
+# going to the grid, which is the surface people judge an account by.
+CAROUSEL_MIN_SCORE = int(os.getenv("CAROUSEL_MIN_SCORE", "6"))
+
 # Display typeface, bundled in assets/fonts so CI and local render identically.
 # Both shipped faces are slabs rather than high-contrast didones — editorial
 # authority without borrowing the reference account's Playfair-style fingerprint.
